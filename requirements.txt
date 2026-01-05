@@ -14,8 +14,8 @@ apscheduler==3.11.2
     # via crm-system (pyproject.toml)
 asyncpg==0.31.0
     # via crm-system (pyproject.toml)
-bcrypt==5.0.0
-    # via passlib
+bcrypt==4.0.1
+    # via passlib (pinned for passlib compatibility)
 cachetools==6.2.4
     # via google-auth
 certifi==2026.1.4
