@@ -14,6 +14,8 @@ apscheduler==3.11.2
     # via crm-system (pyproject.toml)
 asyncpg==0.31.0
     # via crm-system (pyproject.toml)
+bcrypt==5.0.0
+    # via passlib
 cachetools==6.2.4
     # via google-auth
 certifi==2026.1.4
@@ -67,6 +69,8 @@ numpy==2.4.0
 oauthlib==3.3.1
     # via requests-oauthlib
 pandas==2.3.3
+    # via crm-system (pyproject.toml)
+passlib==1.7.4
     # via crm-system (pyproject.toml)
 proto-plus==1.27.0
     # via google-api-core
@@ -133,3 +137,4 @@ urllib3==2.6.2
     # via requests
 uvicorn==0.40.0
     # via crm-system (pyproject.toml)
+itsdangerous>=2.0.0
