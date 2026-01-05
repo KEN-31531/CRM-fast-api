@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM 系統</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>CRM 系統</h1>
+                <p>顧客關係管理</p>
+            </div>
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">主要功能</div>
+                    <a class="nav-item active" data-page="dashboard">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                        </svg>
+                        儀表板
+                    </a>
+                    <a class="nav-item" data-page="customers">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                        顧客列表
+                    </a>
+                    <a class="nav-item" data-page="courses">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                        </svg>
+                        課程管理
+                    </a>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">數據分析</div>
+                    <a class="nav-item" data-page="analysis">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        購買分析
+                    </a>
+                    <a class="nav-item" data-page="conversion">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                        </svg>
+                        轉換率分析
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div id="page-content">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    載入中...
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // API Base URL
+        const API_BASE = '';
+
+        // Page templates
+        const pages = {
+            dashboard: async () => {
+                const data = await fetchAPI('/analysis/activity-correlation');
+                return `
+                    <div class="page-header">
+                        <h2>儀表板</h2>
+                        <p>CRM 系統總覽</p>
+                    </div>
+                    <div class="card-grid">
+                        <div class="card">
+                            <div class="card-header">
+                                <div>
+                                    <div class="card-title">完整課程參與</div>
+                                    <div class="card-value">${data.summary['完整課程']['參與人數']}</div>
+                                    <div class="card-subtitle">購買率 ${data.summary['完整課程']['購買率']}</div>
+                                </div>
+                                <div class="card-icon blue">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">
+                                <div>
+                                    <div class="card-title">體驗課程參與</div>
+                                    <div class="card-value">${data.summary['體驗課程']['參與人數']}</div>
+                                    <div class="card-subtitle">購買率 ${data.summary['體驗課程']['購買率']}</div>
+                                </div>
+                                <div class="card-icon green">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">
+                                <div>
+                                    <div class="card-title">完整課程購買</div>
+                                    <div class="card-value">${data.summary['完整課程']['購買人數']}</div>
+                                    <div class="card-subtitle">人</div>
+                                </div>
+                                <div class="card-icon orange">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">
+                                <div>
+                                    <div class="card-title">體驗課程購買</div>
+                                    <div class="card-value">${data.summary['體驗課程']['購買人數']}</div>
+                                    <div class="card-subtitle">人</div>
+                                </div>
+                                <div class="card-icon teal">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="insights-container">
+                        <div class="insights-title">數據洞察</div>
+                        ${data.insights.map(insight => `
+                            <div class="insight-item">
+                                <div class="insight-icon">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </div>
+                                <div class="insight-text">${insight}</div>
+                            </div>
+                        `).join('')}
+                        <div class="insight-item">
+                            <div class="insight-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                            </div>
+                            <div class="insight-text">同時參加兩種課程的顧客數：${data.customer_overlap['同時參加兩種課程的顧客數']} 人</div>
+                        </div>
+                    </div>
+                `;
+            },
+
+            customers: async () => {
+                const data = await fetchAPI('/customers/');
+                return `
+                    <div class="page-header">
+                        <h2>顧客列表</h2>
+                        <p>所有顧客及其活動參與記錄</p>
+                    </div>
+                    <div class="table-container">
+                        <div class="table-header">
+                            <div class="table-title">顧客資料 (${data.length} 筆)</div>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>姓名</th>
+                                    <th>電話</th>
+                                    <th>生日</th>
+                                    <th>完整課程</th>
+                                    <th>體驗課程</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.map(c => `
+                                    <tr>
+                                        <td>${c.name}</td>
+                                        <td>${c.phone}</td>
+                                        <td>${c.birthday}</td>
+                                        <td>
+                                            ${c.complete_course_participations.length > 0
+                                                ? `<span class="badge ${c.purchased_from_complete ? 'badge-success' : 'badge-warning'}">${c.purchased_from_complete ? '已購買' : '未購買'}</span>`
+                                                : '-'}
+                                        </td>
+                                        <td>
+                                            ${c.experience_course_participations.length > 0
+                                                ? `<span class="badge ${c.purchased_from_experience ? 'badge-success' : 'badge-warning'}">${c.purchased_from_experience ? '已購買' : '未購買'}</span>`
+                                                : '-'}
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            },
+
+            courses: async () => {
+                const complete = await fetchAPI('/customers/');
+                const completeCourse = complete.filter(c => c.complete_course_participations.length > 0);
+                const experienceCourse = complete.filter(c => c.experience_course_participations.length > 0);
+
+                return `
+                    <div class="page-header">
+                        <h2>課程管理</h2>
+                        <p>課程參與狀況</p>
+                    </div>
+                    <div class="card-grid">
+                        <div class="card">
+                            <div class="card-title">聖誕節蛋糕製作完整課程</div>
+                            <div class="card-value">${completeCourse.length} <span style="font-size:1rem;color:#666">人參與</span></div>
+                        </div>
+                        <div class="card">
+                            <div class="card-title">聖誕節蛋糕製作體驗課程</div>
+                            <div class="card-value">${experienceCourse.length} <span style="font-size:1rem;color:#666">人參與</span></div>
+                        </div>
+                    </div>
+                `;
+            },
+
+            analysis: async () => {
+                const data = await fetchAPI('/analysis/summary');
+                return `
+                    <div class="page-header">
+                        <h2>購買分析</h2>
+                        <p>課程購買統計</p>
+                    </div>
+                    <div class="card-grid">
+                        <div class="card">
+                            <div class="card-title">完整課程購買率</div>
+                            <div class="card-value">${data.complete_course_purchase_rate}%</div>
+                            <div class="card-subtitle">${data.complete_course_purchased_count} / ${data.total_complete_course_participants} 人購買</div>
+                        </div>
+                        <div class="card">
+                            <div class="card-title">體驗課程購買率</div>
+                            <div class="card-value">${data.experience_course_purchase_rate}%</div>
+                            <div class="card-subtitle">${data.experience_course_purchased_count} / ${data.total_experience_course_participants} 人購買</div>
+                        </div>
+                    </div>
+                    <div class="insights-container">
+                        <div class="insights-title">顧客重疊分析</div>
+                        <div class="insight-item">
+                            <div class="insight-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                            </div>
+                            <div class="insight-text">同時參加兩種課程：${data.customers_in_both} 人</div>
+                        </div>
+                        <div class="insight-item">
+                            <div class="insight-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                                </svg>
+                            </div>
+                            <div class="insight-text">只參加完整課程：${data.customers_only_complete} 人</div>
+                        </div>
+                        <div class="insight-item">
+                            <div class="insight-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
+                            <div class="insight-text">只參加體驗課程：${data.customers_only_experience} 人</div>
+                        </div>
+                    </div>
+                `;
+            },
+
+            conversion: async () => {
+                const data = await fetchAPI('/analysis/conversion');
+                return `
+                    <div class="page-header">
+                        <h2>轉換率分析</h2>
+                        <p>體驗課程到完整課程的轉換追蹤</p>
+                    </div>
+                    <div class="card-grid">
+                        <div class="card">
+                            <div class="card-title">體驗課程參與者</div>
+                            <div class="card-value">${data.experience_participants}</div>
+                            <div class="card-subtitle">人</div>
+                        </div>
+                        <div class="card">
+                            <div class="card-title">體驗後購買完整課程</div>
+                            <div class="card-value">${data.experience_to_complete_purchase}</div>
+                            <div class="card-subtitle">人</div>
+                        </div>
+                        <div class="card">
+                            <div class="card-title">轉換率</div>
+                            <div class="card-value">${data.experience_to_complete_rate}%</div>
+                            <div class="card-subtitle">體驗 → 完整課程</div>
+                        </div>
+                        <div class="card">
+                            <div class="card-title">僅體驗課程購買</div>
+                            <div class="card-value">${data.experience_only_purchased}</div>
+                            <div class="card-subtitle">人</div>
+                        </div>
+                    </div>
+                `;
+            }
+        };
+
+        // Fetch API helper
+        async function fetchAPI(endpoint) {
+            const res = await fetch(API_BASE + endpoint);
+            return res.json();
+        }
+
+        // Navigation
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const page = item.dataset.page;
+
+                // Update active state
+                document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+                item.classList.add('active');
+
+                // Show loading
+                document.getElementById('page-content').innerHTML = `
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        載入中...
+                    </div>
+                `;
+
+                // Load page
+                try {
+                    const content = await pages[page]();
+                    document.getElementById('page-content').innerHTML = content;
+                } catch (error) {
+                    document.getElementById('page-content').innerHTML = `
+                        <div class="card">
+                            <div class="card-title">錯誤</div>
+                            <p>載入資料時發生錯誤：${error.message}</p>
+                        </div>
+                    `;
+                }
+            });
+        });
+
+        // Load dashboard on start
+        document.querySelector('[data-page="dashboard"]').click();
+    </script>
+</body>
+</html>
