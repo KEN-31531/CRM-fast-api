@@ -127,7 +127,10 @@ class CampaignService:
         subject: str,
         content: str,
         course_type_filter: str = "all",
-        purchase_status_filter: str = "all"
+        purchase_status_filter: str = "all",
+        customer_ids: list[int] = None,
+        additional_emails: list[str] = None,
+        use_filter: bool = True
     ) -> Campaign:
         """建立廣告活動"""
         campaign = Campaign(
@@ -142,22 +145,78 @@ class CampaignService:
         await db.commit()
         await db.refresh(campaign)
 
-        # 取得目標客群並建立收件人記錄
-        customers = await self.get_filtered_customers(
-            db, course_type_filter, purchase_status_filter
-        )
+        added_customer_ids = set()
+        added_emails = set()
+        total_recipients = 0
 
-        for customer in customers:
-            recipient = CampaignRecipient(
-                campaign_id=campaign.id,
-                customer_id=customer.id
+        # 1. 如果使用篩選條件，取得符合條件的顧客
+        if use_filter:
+            customers = await self.get_filtered_customers(
+                db, course_type_filter, purchase_status_filter
             )
-            db.add(recipient)
+            for customer in customers:
+                if customer.id not in added_customer_ids:
+                    recipient = CampaignRecipient(
+                        campaign_id=campaign.id,
+                        customer_id=customer.id
+                    )
+                    db.add(recipient)
+                    added_customer_ids.add(customer.id)
+                    total_recipients += 1
 
-        campaign.total_recipients = len(customers)
+        # 2. 如果有指定 customer_ids，加入這些顧客
+        if customer_ids:
+            result = await db.execute(
+                select(Customer).where(Customer.id.in_(customer_ids))
+            )
+            specified_customers = result.scalars().all()
+            for customer in specified_customers:
+                if customer.id not in added_customer_ids:
+                    recipient = CampaignRecipient(
+                        campaign_id=campaign.id,
+                        customer_id=customer.id
+                    )
+                    db.add(recipient)
+                    added_customer_ids.add(customer.id)
+                    total_recipients += 1
+
+        # 3. 如果有額外的 email，建立沒有 customer_id 的收件人
+        if additional_emails:
+            for email in additional_emails:
+                email = email.strip().lower()
+                if email and email not in added_emails:
+                    # 檢查是否已經在顧客列表中
+                    existing = await db.execute(
+                        select(Customer).where(Customer.email == email)
+                    )
+                    existing_customer = existing.scalar_one_or_none()
+
+                    if existing_customer and existing_customer.id in added_customer_ids:
+                        # 已經加入過了，跳過
+                        continue
+                    elif existing_customer:
+                        # 有對應顧客但還沒加入
+                        recipient = CampaignRecipient(
+                            campaign_id=campaign.id,
+                            customer_id=existing_customer.id
+                        )
+                        added_customer_ids.add(existing_customer.id)
+                    else:
+                        # 沒有對應顧客，建立只有 email 的收件人
+                        recipient = CampaignRecipient(
+                            campaign_id=campaign.id,
+                            email=email,
+                            name=email.split("@")[0]  # 使用 email 前綴作為預設名稱
+                        )
+
+                    db.add(recipient)
+                    added_emails.add(email)
+                    total_recipients += 1
+
+        campaign.total_recipients = total_recipients
         await db.commit()
 
-        logger.info(f"Created campaign {campaign.id} with {len(customers)} recipients")
+        logger.info(f"Created campaign {campaign.id} with {total_recipients} recipients")
         return campaign
 
     async def update_campaign(
@@ -264,8 +323,16 @@ class CampaignService:
             if recipient.sent:
                 continue
 
+            # 取得收件人資訊（可能來自 customer 或直接設定的 email）
             customer = recipient.customer
-            if not customer or not customer.email:
+            if customer:
+                recipient_email = customer.email
+                recipient_name = customer.name
+            else:
+                recipient_email = recipient.email
+                recipient_name = recipient.name or "收件人"
+
+            if not recipient_email:
                 recipient.error_message = "無效的 Email"
                 failed_count += 1
                 continue
@@ -273,7 +340,7 @@ class CampaignService:
             try:
                 # 個人化內容
                 personalized_content = campaign.content.replace(
-                    "{{name}}", customer.name
+                    "{{name}}", recipient_name
                 )
 
                 # 處理追蹤連結
@@ -295,7 +362,7 @@ class CampaignService:
 
                 # 發送郵件
                 send_result = await email_service.send_email(
-                    to=customer.email,
+                    to=recipient_email,
                     subject=campaign.subject,
                     body_html=processed_content
                 )
@@ -309,7 +376,7 @@ class CampaignService:
                     failed_count += 1
 
             except Exception as e:
-                logger.error(f"Failed to send to {customer.email}: {e}")
+                logger.error(f"Failed to send to {recipient_email}: {e}")
                 recipient.error_message = str(e)
                 failed_count += 1
 

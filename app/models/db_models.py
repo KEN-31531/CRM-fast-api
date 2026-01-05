@@ -88,7 +88,11 @@ class CampaignRecipient(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     campaign_id: Mapped[int] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"))
-    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
+    customer_id: Mapped[Optional[int]] = mapped_column(ForeignKey("customers.id"), nullable=True)
+
+    # 額外的 email（沒有對應顧客時使用）
+    email: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # 收件人名稱
 
     # 發送狀態
     sent: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -102,7 +106,7 @@ class CampaignRecipient(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 
     campaign: Mapped["Campaign"] = relationship(back_populates="recipients")
-    customer: Mapped["Customer"] = relationship()
+    customer: Mapped[Optional["Customer"]] = relationship()
 
 
 class TrackedLink(Base):

@@ -491,7 +491,7 @@
                     </div>
 
                     <div id="campaign-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;justify-content:center;align-items:center;">
-                        <div style="background:white;border-radius:12px;max-width:600px;width:90%;max-height:90vh;overflow-y:auto;padding:24px;">
+                        <div style="background:white;border-radius:12px;max-width:700px;width:90%;max-height:90vh;overflow-y:auto;padding:24px;">
                             <h3 style="margin:0 0 20px;">建立廣告活動</h3>
                             <form id="campaign-form">
                                 <div style="margin-bottom:16px;">
@@ -502,24 +502,57 @@
                                     <label style="display:block;margin-bottom:4px;font-weight:500;">郵件主旨</label>
                                     <input type="text" name="subject" required style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;">
                                 </div>
-                                <div style="display:flex;gap:16px;margin-bottom:16px;">
-                                    <div style="flex:1;">
-                                        <label style="display:block;margin-bottom:4px;font-weight:500;">課程類型</label>
-                                        <select name="course_type_filter" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;">
-                                            <option value="all">全部</option>
-                                            <option value="complete">完整課程</option>
-                                            <option value="experience">體驗課程</option>
-                                        </select>
+
+                                <!-- 收件人選擇區 -->
+                                <div style="background:#f7fafc;border-radius:8px;padding:16px;margin-bottom:16px;">
+                                    <div style="font-weight:500;margin-bottom:12px;">收件人設定</div>
+
+                                    <!-- 選擇方式 -->
+                                    <div style="display:flex;gap:16px;margin-bottom:12px;">
+                                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                                            <input type="radio" name="recipient_mode" value="filter" checked onchange="toggleRecipientMode(this.value)">
+                                            <span>使用篩選條件</span>
+                                        </label>
+                                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                                            <input type="radio" name="recipient_mode" value="manual" onchange="toggleRecipientMode(this.value)">
+                                            <span>手動選擇</span>
+                                        </label>
+                                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                                            <input type="radio" name="recipient_mode" value="both" onchange="toggleRecipientMode(this.value)">
+                                            <span>兩者皆用</span>
+                                        </label>
                                     </div>
-                                    <div style="flex:1;">
-                                        <label style="display:block;margin-bottom:4px;font-weight:500;">購買狀態</label>
-                                        <select name="purchase_status_filter" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;">
-                                            <option value="all">全部</option>
-                                            <option value="purchased">已購買</option>
-                                            <option value="not_purchased">未購買</option>
-                                        </select>
+
+                                    <!-- 篩選條件區塊 -->
+                                    <div id="filter-section" style="display:flex;gap:16px;margin-bottom:12px;">
+                                        <div style="flex:1;">
+                                            <label style="display:block;margin-bottom:4px;font-size:13px;">課程類型</label>
+                                            <select name="course_type_filter" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;">
+                                                <option value="all">全部</option>
+                                                <option value="complete">完整課程</option>
+                                                <option value="experience">體驗課程</option>
+                                            </select>
+                                        </div>
+                                        <div style="flex:1;">
+                                            <label style="display:block;margin-bottom:4px;font-size:13px;">購買狀態</label>
+                                            <select name="purchase_status_filter" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;">
+                                                <option value="all">全部</option>
+                                                <option value="purchased">已購買</option>
+                                                <option value="not_purchased">未購買</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <!-- 手動選擇區塊 -->
+                                    <div id="manual-section" style="display:none;">
+                                        <label style="display:block;margin-bottom:4px;font-size:13px;">選擇學員</label>
+                                        <div id="customer-list" style="max-height:150px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:6px;background:white;margin-bottom:12px;"></div>
+
+                                        <label style="display:block;margin-bottom:4px;font-size:13px;">額外 Email（每行一個）</label>
+                                        <textarea name="additional_emails" rows="3" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;" placeholder="email1@example.com&#10;email2@example.com"></textarea>
                                     </div>
                                 </div>
+
                                 <div style="margin-bottom:16px;">
                                     <label style="display:block;margin-bottom:4px;font-weight:500;">郵件內容 (HTML)</label>
                                     <textarea name="content" rows="8" required style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;font-family:monospace;" placeholder="<h1>標題</h1>
@@ -564,6 +597,17 @@
                         <p>管理自動化任務和排程</p>
                     </div>
 
+                    <button id="create-schedule-btn" style="
+                        background: linear-gradient(135deg, #1a365d 0%, #2d4a6f 100%);
+                        color: white;
+                        border: none;
+                        padding: 12px 24px;
+                        border-radius: 8px;
+                        font-size: 14px;
+                        cursor: pointer;
+                        margin-bottom: 24px;
+                    ">+ 新增重複排程</button>
+
                     <div class="card-grid">
                         <div class="card">
                             <div class="card-title">待執行任務</div>
@@ -597,9 +641,17 @@
                             <tbody>
                                 ${schedules.length === 0 ? `
                                     <tr><td colspan="6" style="text-align:center;color:#666;">尚無排程任務</td></tr>
-                                ` : schedules.map(s => `
+                                ` : schedules.map(s => {
+                                    const taskTypeMap = {
+                                        'campaign': '廣告活動',
+                                        'campaign_send': '廣告活動發送',
+                                        'birthday_greeting': '生日祝賀',
+                                        'reminder_email': '提醒郵件'
+                                    };
+                                    const taskTypeName = taskTypeMap[s.task_type] || s.task_type;
+                                    return `
                                     <tr>
-                                        <td>${s.task_type === 'campaign' ? '廣告活動' : s.task_type}</td>
+                                        <td>${taskTypeName}</td>
                                         <td>${s.description || '-'}</td>
                                         <td>${s.scheduled_at ? new Date(s.scheduled_at).toLocaleString('zh-TW') : (s.cron_expression || '-')}</td>
                                         <td>${s.next_run_at ? new Date(s.next_run_at).toLocaleString('zh-TW') : '-'}</td>
@@ -610,9 +662,128 @@
                                             ` : '-'}
                                         </td>
                                     </tr>
-                                `).join('')}
+                                `;}).join('')}
                             </tbody>
                         </table>
+                    </div>
+
+                    <!-- 新增排程對話框 -->
+                    <div id="schedule-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;justify-content:center;align-items:center;">
+                        <div style="background:white;border-radius:12px;max-width:550px;width:90%;max-height:90vh;overflow-y:auto;padding:24px;">
+                            <h3 style="margin:0 0 20px;">新增排程</h3>
+                            <form id="schedule-form">
+                                <!-- 排程類型 -->
+                                <div style="margin-bottom:16px;">
+                                    <label style="display:block;margin-bottom:8px;font-weight:500;">排程類型</label>
+                                    <div style="display:flex;gap:16px;">
+                                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                                            <input type="radio" name="schedule_type" value="once" checked onchange="toggleScheduleType(this.value)">
+                                            <span>單次執行</span>
+                                        </label>
+                                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                                            <input type="radio" name="schedule_type" value="recurring" onchange="toggleScheduleType(this.value)">
+                                            <span>重複執行</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- 任務類型 -->
+                                <div style="margin-bottom:16px;">
+                                    <label style="display:block;margin-bottom:4px;font-weight:500;">任務類型</label>
+                                    <div style="display:flex;gap:8px;">
+                                        <select id="task-type-select" name="task_type" style="flex:1;padding:10px;border:1px solid #e2e8f0;border-radius:6px;">
+                                            <option value="birthday_greeting">生日祝賀郵件</option>
+                                            <option value="campaign_send">廣告活動發送</option>
+                                            <option value="reminder_email">提醒郵件</option>
+                                            <option value="custom">自訂任務...</option>
+                                        </select>
+                                    </div>
+                                    <div id="custom-task-type" style="display:none;margin-top:8px;">
+                                        <input type="text" id="custom-task-input" placeholder="輸入自訂任務名稱" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;">
+                                    </div>
+                                </div>
+
+                                <!-- 排程說明 -->
+                                <div style="margin-bottom:16px;">
+                                    <label style="display:block;margin-bottom:4px;font-weight:500;">排程說明</label>
+                                    <input type="text" name="description" required placeholder="例如：發送新年促銷活動" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;">
+                                </div>
+
+                                <!-- 收件人設定（非生日祝賀時顯示） -->
+                                <div id="recipient-section" style="display:none;background:#f7fafc;border-radius:8px;padding:16px;margin-bottom:16px;">
+                                    <div style="font-weight:500;margin-bottom:12px;">收件人設定</div>
+
+                                    <label style="display:block;margin-bottom:4px;font-size:13px;">選擇顧客</label>
+                                    <div id="schedule-customer-list" style="max-height:120px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:6px;background:white;margin-bottom:12px;"></div>
+
+                                    <label style="display:block;margin-bottom:4px;font-size:13px;">額外 Email（每行一個）</label>
+                                    <textarea name="additional_emails" rows="2" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;" placeholder="email1@example.com"></textarea>
+                                </div>
+
+                                <!-- 郵件內容（非生日祝賀時顯示） -->
+                                <div id="email-content-section" style="display:none;margin-bottom:16px;">
+                                    <div style="margin-bottom:12px;">
+                                        <label style="display:block;margin-bottom:4px;font-weight:500;">郵件主旨</label>
+                                        <input type="text" name="email_subject" placeholder="輸入郵件主旨" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;">
+                                    </div>
+                                    <div>
+                                        <label style="display:block;margin-bottom:4px;font-weight:500;">郵件內容 (HTML)</label>
+                                        <textarea name="email_content" rows="5" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;font-family:monospace;font-size:13px;" placeholder="<p>親愛的 {{name}} 您好，</p>&#10;<p>內容...</p>"></textarea>
+                                        <p style="font-size:12px;color:#666;margin-top:4px;">使用 {{name}} 插入收件人姓名</p>
+                                    </div>
+                                </div>
+
+                                <!-- 單次執行：日期時間選擇 -->
+                                <div id="once-section">
+                                    <label style="display:block;margin-bottom:8px;font-weight:500;">執行時間</label>
+                                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                        <select name="year" style="padding:10px;border:1px solid #e2e8f0;border-radius:6px;min-width:90px;"></select>
+                                        <select name="month" style="padding:10px;border:1px solid #e2e8f0;border-radius:6px;min-width:70px;"></select>
+                                        <select name="day" style="padding:10px;border:1px solid #e2e8f0;border-radius:6px;min-width:70px;"></select>
+                                        <select name="hour" style="padding:10px;border:1px solid #e2e8f0;border-radius:6px;min-width:70px;"></select>
+                                        <select name="minute" style="padding:10px;border:1px solid #e2e8f0;border-radius:6px;min-width:70px;"></select>
+                                    </div>
+                                </div>
+
+                                <!-- 重複執行：頻率設定 -->
+                                <div id="recurring-section" style="display:none;">
+                                    <label style="display:block;margin-bottom:8px;font-weight:500;">重複頻率</label>
+                                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+                                        <select name="frequency" style="padding:10px;border:1px solid #e2e8f0;border-radius:6px;">
+                                            <option value="daily">每天</option>
+                                            <option value="weekly">每週</option>
+                                            <option value="monthly">每月</option>
+                                        </select>
+                                        <span id="weekday-select" style="display:none;">
+                                            <select name="weekday" style="padding:10px;border:1px solid #e2e8f0;border-radius:6px;">
+                                                <option value="1">週一</option>
+                                                <option value="2">週二</option>
+                                                <option value="3">週三</option>
+                                                <option value="4">週四</option>
+                                                <option value="5">週五</option>
+                                                <option value="6">週六</option>
+                                                <option value="0">週日</option>
+                                            </select>
+                                        </span>
+                                        <span id="monthday-select" style="display:none;">
+                                            <select name="monthday" style="padding:10px;border:1px solid #e2e8f0;border-radius:6px;">
+                                            </select>
+                                        </span>
+                                    </div>
+                                    <label style="display:block;margin-bottom:8px;font-weight:500;">執行時間</label>
+                                    <div style="display:flex;gap:8px;align-items:center;">
+                                        <select name="recurring_hour" style="padding:10px;border:1px solid #e2e8f0;border-radius:6px;min-width:70px;"></select>
+                                        <span>:</span>
+                                        <select name="recurring_minute" style="padding:10px;border:1px solid #e2e8f0;border-radius:6px;min-width:70px;"></select>
+                                    </div>
+                                </div>
+
+                                <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:24px;">
+                                    <button type="button" onclick="closeScheduleModal()" style="padding:10px 20px;border:1px solid #e2e8f0;border-radius:6px;background:white;cursor:pointer;">取消</button>
+                                    <button type="submit" style="padding:10px 20px;border:none;border-radius:6px;background:#1a365d;color:white;cursor:pointer;">建立排程</button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 `;
             }
@@ -652,6 +823,8 @@
                         initGreetingPage();
                     } else if (page === 'campaigns') {
                         initCampaignsPage();
+                    } else if (page === 'schedules') {
+                        initSchedulesPage();
                     }
                 } catch (error) {
                     document.getElementById('page-content').innerHTML = `
@@ -762,9 +935,15 @@
         }
 
         // Campaigns page initialization
-        function initCampaignsPage() {
+        let campaignCustomers = [];
+
+        async function initCampaignsPage() {
+            // Load customers for the modal
+            campaignCustomers = await fetchAPI('/customers/');
+
             // Create campaign button
             document.getElementById('create-campaign-btn').addEventListener('click', () => {
+                loadCustomerList();
                 document.getElementById('campaign-modal').style.display = 'flex';
             });
 
@@ -772,13 +951,41 @@
             document.getElementById('campaign-form').addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const formData = new FormData(e.target);
+                const recipientMode = formData.get('recipient_mode');
+
                 const data = {
                     name: formData.get('name'),
                     subject: formData.get('subject'),
                     content: formData.get('content'),
                     course_type_filter: formData.get('course_type_filter'),
-                    purchase_status_filter: formData.get('purchase_status_filter')
+                    purchase_status_filter: formData.get('purchase_status_filter'),
+                    use_filter: recipientMode === 'filter' || recipientMode === 'both',
+                    customer_ids: null,
+                    additional_emails: null
                 };
+
+                // 如果是手動選擇或兩者皆用模式
+                if (recipientMode === 'manual' || recipientMode === 'both') {
+                    // 取得選中的顧客
+                    const selectedCustomers = Array.from(document.querySelectorAll('.campaign-customer-checkbox:checked'))
+                        .map(cb => parseInt(cb.value));
+                    if (selectedCustomers.length > 0) {
+                        data.customer_ids = selectedCustomers;
+                    }
+
+                    // 取得額外的 email
+                    const additionalEmails = formData.get('additional_emails');
+                    if (additionalEmails && additionalEmails.trim()) {
+                        data.additional_emails = additionalEmails.split('\n')
+                            .map(e => e.trim())
+                            .filter(e => e && e.includes('@'));
+                    }
+                }
+
+                // 僅手動模式時不使用篩選
+                if (recipientMode === 'manual') {
+                    data.use_filter = false;
+                }
 
                 try {
                     const response = await fetch('/campaigns/', {
@@ -801,6 +1008,41 @@
             });
         }
 
+        function loadCustomerList() {
+            const container = document.getElementById('customer-list');
+            const customersWithEmail = campaignCustomers.filter(c => c.email);
+
+            if (customersWithEmail.length === 0) {
+                container.innerHTML = '<div style="padding:12px;color:#666;text-align:center;">沒有顧客資料</div>';
+                return;
+            }
+
+            container.innerHTML = customersWithEmail.map(c => `
+                <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #eee;cursor:pointer;">
+                    <input type="checkbox" class="campaign-customer-checkbox" value="${c.id}">
+                    <span style="flex:1;">${c.name}</span>
+                    <span style="color:#666;font-size:12px;">${c.email}</span>
+                </label>
+            `).join('');
+        }
+
+        function toggleRecipientMode(mode) {
+            const filterSection = document.getElementById('filter-section');
+            const manualSection = document.getElementById('manual-section');
+
+            if (mode === 'filter') {
+                filterSection.style.display = 'flex';
+                manualSection.style.display = 'none';
+            } else if (mode === 'manual') {
+                filterSection.style.display = 'none';
+                manualSection.style.display = 'block';
+            } else {
+                // both
+                filterSection.style.display = 'flex';
+                manualSection.style.display = 'block';
+            }
+        }
+
         function closeCampaignModal() {
             document.getElementById('campaign-modal').style.display = 'none';
             document.getElementById('campaign-form').reset();
@@ -808,6 +1050,242 @@
 
         function closeStatsModal() {
             document.getElementById('stats-modal').style.display = 'none';
+        }
+
+        // Schedules page initialization
+        let scheduleCustomers = [];
+
+        async function initSchedulesPage() {
+            // 載入顧客列表
+            scheduleCustomers = await fetchAPI('/customers/');
+
+            document.getElementById('create-schedule-btn').addEventListener('click', () => {
+                initDateTimeSelectors();
+                loadScheduleCustomerList();
+                document.getElementById('schedule-modal').style.display = 'flex';
+            });
+
+            // 任務類型選擇變更
+            document.getElementById('task-type-select').addEventListener('change', (e) => {
+                const customDiv = document.getElementById('custom-task-type');
+                customDiv.style.display = e.target.value === 'custom' ? 'block' : 'none';
+
+                // 生日祝賀不需要選擇收件人和郵件內容
+                const needsRecipient = e.target.value !== 'birthday_greeting';
+                document.getElementById('recipient-section').style.display = needsRecipient ? 'block' : 'none';
+                document.getElementById('email-content-section').style.display = needsRecipient ? 'block' : 'none';
+            });
+
+            // 重複頻率變更
+            document.querySelector('select[name="frequency"]').addEventListener('change', (e) => {
+                document.getElementById('weekday-select').style.display = e.target.value === 'weekly' ? 'inline' : 'none';
+                document.getElementById('monthday-select').style.display = e.target.value === 'monthly' ? 'inline' : 'none';
+            });
+
+            document.getElementById('schedule-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const scheduleType = formData.get('schedule_type');
+
+                // 取得任務類型
+                let taskType = formData.get('task_type');
+                if (taskType === 'custom') {
+                    taskType = document.getElementById('custom-task-input').value.trim();
+                    if (!taskType) {
+                        alert('請輸入自訂任務名稱');
+                        return;
+                    }
+                }
+
+                let data = {
+                    task_type: taskType,
+                    description: formData.get('description'),
+                    schedule_type: scheduleType
+                };
+
+                // 如果不是生日祝賀，需要收件人和郵件內容
+                if (taskType !== 'birthday_greeting') {
+                    // 取得選中的顧客
+                    const selectedCustomers = Array.from(document.querySelectorAll('.schedule-customer-checkbox:checked'))
+                        .map(cb => parseInt(cb.value));
+                    if (selectedCustomers.length > 0) {
+                        data.customer_ids = selectedCustomers;
+                    }
+
+                    // 取得額外的 email
+                    const additionalEmails = formData.get('additional_emails');
+                    if (additionalEmails && additionalEmails.trim()) {
+                        data.additional_emails = additionalEmails.split('\n')
+                            .map(e => e.trim())
+                            .filter(e => e && e.includes('@'));
+                    }
+
+                    // 郵件內容
+                    data.email_subject = formData.get('email_subject');
+                    data.email_content = formData.get('email_content');
+
+                    // 驗證
+                    if (!data.customer_ids?.length && !data.additional_emails?.length) {
+                        alert('請選擇至少一位收件人或輸入額外 Email');
+                        return;
+                    }
+                    if (!data.email_subject || !data.email_content) {
+                        alert('請填寫郵件主旨和內容');
+                        return;
+                    }
+                }
+
+                if (scheduleType === 'once') {
+                    // 單次執行：組合日期時間
+                    const year = formData.get('year');
+                    const month = formData.get('month').padStart(2, '0');
+                    const day = formData.get('day').padStart(2, '0');
+                    const hour = formData.get('hour').padStart(2, '0');
+                    const minute = formData.get('minute').padStart(2, '0');
+                    data.scheduled_at = `${year}-${month}-${day}T${hour}:${minute}:00`;
+                } else {
+                    // 重複執行：組合 cron 表達式
+                    const frequency = formData.get('frequency');
+                    const hour = formData.get('recurring_hour');
+                    const minute = formData.get('recurring_minute');
+
+                    if (frequency === 'daily') {
+                        data.cron_expression = `${minute} ${hour} * * *`;
+                    } else if (frequency === 'weekly') {
+                        const weekday = formData.get('weekday');
+                        data.cron_expression = `${minute} ${hour} * * ${weekday}`;
+                    } else if (frequency === 'monthly') {
+                        const monthday = formData.get('monthday');
+                        data.cron_expression = `${minute} ${hour} ${monthday} * *`;
+                    }
+                }
+
+                try {
+                    const endpoint = scheduleType === 'once' ? '/schedules/once' : '/schedules/recurring';
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    const result = await response.json();
+
+                    if (result.success) {
+                        alert(result.message);
+                        closeScheduleModal();
+                        document.querySelector('[data-page="schedules"]').click();
+                    } else {
+                        alert('建立失敗：' + (result.detail || '未知錯誤'));
+                    }
+                } catch (error) {
+                    alert('建立失敗：' + error.message);
+                }
+            });
+        }
+
+        function loadScheduleCustomerList() {
+            const container = document.getElementById('schedule-customer-list');
+            const customersWithEmail = scheduleCustomers.filter(c => c.email);
+
+            if (customersWithEmail.length === 0) {
+                container.innerHTML = '<div style="padding:12px;color:#666;text-align:center;">沒有顧客資料</div>';
+                return;
+            }
+
+            container.innerHTML = customersWithEmail.map(c => `
+                <label style="display:flex;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid #eee;cursor:pointer;">
+                    <input type="checkbox" class="schedule-customer-checkbox" value="${c.id}">
+                    <span style="flex:1;font-size:13px;">${c.name}</span>
+                    <span style="color:#666;font-size:11px;">${c.email}</span>
+                </label>
+            `).join('');
+        }
+
+        function initDateTimeSelectors() {
+            const now = new Date();
+            const currentYear = now.getFullYear();
+
+            // 年份選擇（今年和明年）
+            const yearSelect = document.querySelector('select[name="year"]');
+            yearSelect.innerHTML = '';
+            for (let y = currentYear; y <= currentYear + 2; y++) {
+                yearSelect.innerHTML += `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}年</option>`;
+            }
+
+            // 月份選擇
+            const monthSelect = document.querySelector('select[name="month"]');
+            monthSelect.innerHTML = '';
+            for (let m = 1; m <= 12; m++) {
+                monthSelect.innerHTML += `<option value="${m}" ${m === now.getMonth() + 1 ? 'selected' : ''}>${m}月</option>`;
+            }
+
+            // 日期選擇
+            const daySelect = document.querySelector('select[name="day"]');
+            updateDayOptions();
+
+            // 小時選擇
+            const hourSelect = document.querySelector('select[name="hour"]');
+            const recurringHourSelect = document.querySelector('select[name="recurring_hour"]');
+            hourSelect.innerHTML = '';
+            recurringHourSelect.innerHTML = '';
+            for (let h = 0; h <= 23; h++) {
+                const hStr = h.toString().padStart(2, '0');
+                const selected = h === 9 ? 'selected' : '';
+                hourSelect.innerHTML += `<option value="${h}" ${selected}>${hStr}時</option>`;
+                recurringHourSelect.innerHTML += `<option value="${h}" ${selected}>${hStr}時</option>`;
+            }
+
+            // 分鐘選擇
+            const minuteSelect = document.querySelector('select[name="minute"]');
+            const recurringMinuteSelect = document.querySelector('select[name="recurring_minute"]');
+            minuteSelect.innerHTML = '';
+            recurringMinuteSelect.innerHTML = '';
+            for (let m = 0; m <= 59; m += 5) {
+                const mStr = m.toString().padStart(2, '0');
+                const selected = m === 0 ? 'selected' : '';
+                minuteSelect.innerHTML += `<option value="${m}" ${selected}>${mStr}分</option>`;
+                recurringMinuteSelect.innerHTML += `<option value="${m}" ${selected}>${mStr}分</option>`;
+            }
+
+            // 每月幾號選擇
+            const monthdaySelect = document.querySelector('select[name="monthday"]');
+            monthdaySelect.innerHTML = '';
+            for (let d = 1; d <= 31; d++) {
+                monthdaySelect.innerHTML += `<option value="${d}">${d}號</option>`;
+            }
+
+            // 月份變更時更新日期選項
+            yearSelect.addEventListener('change', updateDayOptions);
+            monthSelect.addEventListener('change', updateDayOptions);
+        }
+
+        function updateDayOptions() {
+            const year = parseInt(document.querySelector('select[name="year"]').value);
+            const month = parseInt(document.querySelector('select[name="month"]').value);
+            const daySelect = document.querySelector('select[name="day"]');
+            const currentDay = daySelect.value || new Date().getDate();
+
+            const daysInMonth = new Date(year, month, 0).getDate();
+            daySelect.innerHTML = '';
+            for (let d = 1; d <= daysInMonth; d++) {
+                const selected = d === parseInt(currentDay) && d <= daysInMonth ? 'selected' : '';
+                daySelect.innerHTML += `<option value="${d}" ${selected}>${d}日</option>`;
+            }
+        }
+
+        function toggleScheduleType(type) {
+            document.getElementById('once-section').style.display = type === 'once' ? 'block' : 'none';
+            document.getElementById('recurring-section').style.display = type === 'recurring' ? 'block' : 'none';
+        }
+
+        function closeScheduleModal() {
+            document.getElementById('schedule-modal').style.display = 'none';
+            document.getElementById('schedule-form').reset();
+            document.getElementById('custom-task-type').style.display = 'none';
+            document.getElementById('weekday-select').style.display = 'none';
+            document.getElementById('monthday-select').style.display = 'none';
+            document.getElementById('recipient-section').style.display = 'none';
+            document.getElementById('email-content-section').style.display = 'none';
+            toggleScheduleType('once');
         }
 
         async function viewCampaignStats(campaignId) {

@@ -18,9 +18,188 @@ class RecurringTaskCreate(BaseModel):
     task_type: str
     cron_expression: str  # 格式: "minute hour day month day_of_week"
     description: str
+    # 收件人設定
+    customer_ids: Optional[list[int]] = None  # 指定的顧客 ID 列表
+    additional_emails: Optional[list[str]] = None  # 額外的 email 地址
+    email_subject: Optional[str] = None  # 郵件主旨
+    email_content: Optional[str] = None  # 郵件內容
+
+
+class OnceTaskCreate(BaseModel):
+    task_type: str
+    scheduled_at: str  # ISO 格式: "2024-01-15T09:00:00"
+    description: str
+    # 收件人設定
+    customer_ids: Optional[list[int]] = None  # 指定的顧客 ID 列表
+    additional_emails: Optional[list[str]] = None  # 額外的 email 地址
+    email_subject: Optional[str] = None  # 郵件主旨
+    email_content: Optional[str] = None  # 郵件內容
+
+
+# ========== 任務執行函數 ==========
+
+async def execute_task(
+    task_type: str,
+    description: str = "",
+    customer_ids: list[int] = None,
+    additional_emails: list[str] = None,
+    email_subject: str = None,
+    email_content: str = None
+):
+    """執行排程任務"""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"執行任務: {task_type} - {description}")
+
+    from app.services.email_service import email_service
+    from app.database import AsyncSessionLocal
+    from sqlalchemy import select
+    from app.models.db_models import Customer
+    from datetime import datetime
+
+    if task_type == "birthday_greeting":
+        # 每日檢查生日並發送祝賀
+        from sqlalchemy import extract
+
+        async with AsyncSessionLocal() as session:
+            today = datetime.now()
+            result = await session.execute(
+                select(Customer).where(
+                    extract('month', Customer.birthday) == today.month,
+                    extract('day', Customer.birthday) == today.day
+                )
+            )
+            birthday_customers = result.scalars().all()
+
+            for customer in birthday_customers:
+                if customer.email:
+                    await email_service.send_birthday_greeting(customer)
+
+            logger.info(f"生日祝賀任務完成，發送給 {len(birthday_customers)} 位顧客")
+
+    elif task_type in ["campaign_send", "reminder_email"] or customer_ids or additional_emails:
+        # 發送郵件給指定的顧客
+        if not email_subject or not email_content:
+            logger.warning("缺少郵件主旨或內容")
+            return {"success": False, "error": "缺少郵件主旨或內容"}
+
+        sent_count = 0
+        failed_count = 0
+
+        async with AsyncSessionLocal() as session:
+            # 發送給指定的顧客
+            if customer_ids:
+                result = await session.execute(
+                    select(Customer).where(Customer.id.in_(customer_ids))
+                )
+                customers = result.scalars().all()
+
+                for customer in customers:
+                    if customer.email:
+                        personalized_content = email_content.replace("{{name}}", customer.name)
+                        send_result = await email_service.send_email(
+                            to=customer.email,
+                            subject=email_subject,
+                            body_html=personalized_content
+                        )
+                        if send_result.get("success"):
+                            sent_count += 1
+                        else:
+                            failed_count += 1
+
+            # 發送給額外的 email
+            if additional_emails:
+                for email in additional_emails:
+                    email = email.strip()
+                    if email:
+                        personalized_content = email_content.replace("{{name}}", email.split("@")[0])
+                        send_result = await email_service.send_email(
+                            to=email,
+                            subject=email_subject,
+                            body_html=personalized_content
+                        )
+                        if send_result.get("success"):
+                            sent_count += 1
+                        else:
+                            failed_count += 1
+
+        logger.info(f"郵件任務完成：發送 {sent_count} 封，失敗 {failed_count} 封")
+
+    else:
+        # 自訂任務 - 記錄執行
+        logger.info(f"自訂任務執行: {task_type}")
+
+    return {"success": True, "task_type": task_type}
 
 
 # ========== Endpoints ==========
+
+@router.post("/once")
+async def create_once_task(
+    task: OnceTaskCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """建立單次排程任務"""
+    import uuid
+    from datetime import datetime
+
+    job_id = f"once_{task.task_type}_{uuid.uuid4().hex[:8]}"
+
+    # 解析時間
+    try:
+        scheduled_at = datetime.fromisoformat(task.scheduled_at)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="時間格式錯誤，請使用 ISO 格式")
+
+    if scheduled_at <= datetime.now():
+        raise HTTPException(status_code=400, detail="排程時間必須是未來時間")
+
+    # 建立任務函數（捕獲所有參數）
+    task_type = task.task_type
+    description = task.description
+    customer_ids = task.customer_ids
+    additional_emails = task.additional_emails
+    email_subject = task.email_subject
+    email_content = task.email_content
+
+    async def task_func():
+        await execute_task(
+            task_type=task_type,
+            description=description,
+            customer_ids=customer_ids,
+            additional_emails=additional_emails,
+            email_subject=email_subject,
+            email_content=email_content
+        )
+
+    # 新增排程
+    job_id_result = scheduler_service.schedule_once(
+        job_id=job_id,
+        func=task_func,
+        run_at=scheduled_at
+    )
+
+    if not job_id_result:
+        raise HTTPException(status_code=500, detail="排程建立失敗")
+
+    # 儲存到資料庫
+    db_task = ScheduledTask(
+        job_id=job_id,
+        task_type=task.task_type,
+        description=task.description,
+        is_recurring=False,
+        scheduled_at=scheduled_at,
+        status="pending"
+    )
+    db.add(db_task)
+    await db.commit()
+
+    return {
+        "success": True,
+        "message": f"排程已建立，將於 {scheduled_at.strftime('%Y-%m-%d %H:%M')} 執行",
+        "job_id": job_id
+    }
+
 
 @router.get("/")
 async def list_schedules(
@@ -96,6 +275,59 @@ async def cancel_schedule(
         raise HTTPException(status_code=404, detail="任務不存在")
 
     return {"success": True, "message": "排程已取消"}
+
+
+@router.post("/recurring")
+async def create_recurring_task(
+    task: RecurringTaskCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """建立重複排程任務"""
+    import uuid
+
+    job_id = f"recurring_{task.task_type}_{uuid.uuid4().hex[:8]}"
+
+    # 建立任務函數（捕獲所有參數）
+    task_type = task.task_type
+    description = task.description
+    customer_ids = task.customer_ids
+    additional_emails = task.additional_emails
+    email_subject = task.email_subject
+    email_content = task.email_content
+
+    async def task_func():
+        await execute_task(
+            task_type=task_type,
+            description=description,
+            customer_ids=customer_ids,
+            additional_emails=additional_emails,
+            email_subject=email_subject,
+            email_content=email_content
+        )
+
+    # 新增排程
+    job_id_result = scheduler_service.schedule_recurring(
+        job_id=job_id,
+        func=task_func,
+        cron_expression=task.cron_expression
+    )
+
+    if not job_id_result:
+        raise HTTPException(status_code=500, detail="排程建立失敗")
+
+    # 儲存到資料庫
+    db_task = ScheduledTask(
+        job_id=job_id,
+        task_type=task.task_type,
+        description=task.description,
+        is_recurring=True,
+        cron_expression=task.cron_expression,
+        status="pending"
+    )
+    db.add(db_task)
+    await db.commit()
+
+    return {"success": True, "message": "重複排程已建立", "job_id": job_id}
 
 
 @router.get("/status/{job_id}")

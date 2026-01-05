@@ -21,6 +21,10 @@ class CampaignCreate(BaseModel):
     content: str
     course_type_filter: str = "all"  # all, complete, experience
     purchase_status_filter: str = "all"  # all, purchased, not_purchased
+    # 新增：可以直接指定收件人
+    customer_ids: Optional[list[int]] = None  # 指定的顧客 ID 列表
+    additional_emails: Optional[list[str]] = None  # 額外的 email 地址
+    use_filter: bool = True  # 是否使用篩選條件（False = 僅使用指定的收件人）
 
 
 class CampaignUpdate(BaseModel):
@@ -95,7 +99,10 @@ async def create_campaign(
         subject=campaign.subject,
         content=campaign.content,
         course_type_filter=campaign.course_type_filter,
-        purchase_status_filter=campaign.purchase_status_filter
+        purchase_status_filter=campaign.purchase_status_filter,
+        customer_ids=campaign.customer_ids,
+        additional_emails=campaign.additional_emails,
+        use_filter=campaign.use_filter
     )
 
     return {
