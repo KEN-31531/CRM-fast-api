@@ -1,15 +1,96 @@
 """排程管理 API 路由"""
+import json
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 
-from app.database import get_db
+from app.database import get_db, async_session
 from app.models.db_models import ScheduledTask
 from app.services.scheduler_service import scheduler_service
 
 router = APIRouter(prefix="/schedules", tags=["排程"])
+
+
+# ========== 重載排程任務 ==========
+
+async def reload_scheduled_tasks():
+    """伺服器啟動時從資料庫重新載入排程任務"""
+    import logging
+    from datetime import datetime
+
+    logger = logging.getLogger(__name__)
+    logger.info("正在從資料庫重新載入排程任務...")
+
+    async with async_session() as db:
+        # 取得所有 pending 狀態的任務
+        result = await db.execute(
+            select(ScheduledTask).where(ScheduledTask.status == "pending")
+        )
+        tasks = result.scalars().all()
+
+        loaded_count = 0
+        for task in tasks:
+            try:
+                # 解析任務參數
+                params = json.loads(task.task_params) if task.task_params else {}
+
+                # 建立任務函數
+                task_type = task.task_type
+                description = task.description
+                customer_ids = params.get("customer_ids")
+                additional_emails = params.get("additional_emails")
+                email_subject = params.get("email_subject")
+                email_content = params.get("email_content")
+
+                async def make_task_func(tt, desc, cids, aes, subj, cont):
+                    async def task_func():
+                        await execute_task(
+                            task_type=tt,
+                            description=desc,
+                            customer_ids=cids,
+                            additional_emails=aes,
+                            email_subject=subj,
+                            email_content=cont
+                        )
+                    return task_func
+
+                task_func = await make_task_func(
+                    task_type, description, customer_ids,
+                    additional_emails, email_subject, email_content
+                )
+
+                if task.is_recurring and task.cron_expression:
+                    # 重複任務
+                    scheduler_service.schedule_recurring(
+                        job_id=task.job_id,
+                        func=task_func,
+                        cron_expression=task.cron_expression
+                    )
+                    loaded_count += 1
+                    logger.info(f"重新載入重複任務: {task.job_id}")
+
+                elif task.scheduled_at and task.scheduled_at > datetime.now():
+                    # 單次任務（且尚未過期）
+                    scheduler_service.schedule_once(
+                        job_id=task.job_id,
+                        func=task_func,
+                        run_at=task.scheduled_at
+                    )
+                    loaded_count += 1
+                    logger.info(f"重新載入單次任務: {task.job_id}")
+
+                elif task.scheduled_at and task.scheduled_at <= datetime.now():
+                    # 已過期的單次任務，標記為 missed
+                    task.status = "missed"
+                    await db.commit()
+                    logger.warning(f"任務已過期: {task.job_id}")
+
+            except Exception as e:
+                logger.error(f"載入任務失敗 {task.job_id}: {e}")
+
+        logger.info(f"排程任務重新載入完成，共載入 {loaded_count} 個任務")
 
 
 # ========== Schemas ==========
@@ -182,6 +263,14 @@ async def create_once_task(
     if not job_id_result:
         raise HTTPException(status_code=500, detail="排程建立失敗")
 
+    # 儲存任務參數為 JSON
+    task_params = {
+        "customer_ids": task.customer_ids,
+        "additional_emails": task.additional_emails,
+        "email_subject": task.email_subject,
+        "email_content": task.email_content
+    }
+
     # 儲存到資料庫
     db_task = ScheduledTask(
         job_id=job_id,
@@ -189,6 +278,7 @@ async def create_once_task(
         description=task.description,
         is_recurring=False,
         scheduled_at=scheduled_at,
+        task_params=json.dumps(task_params, ensure_ascii=False),
         status="pending"
     )
     db.add(db_task)
@@ -315,6 +405,14 @@ async def create_recurring_task(
     if not job_id_result:
         raise HTTPException(status_code=500, detail="排程建立失敗")
 
+    # 儲存任務參數為 JSON
+    task_params = {
+        "customer_ids": task.customer_ids,
+        "additional_emails": task.additional_emails,
+        "email_subject": task.email_subject,
+        "email_content": task.email_content
+    }
+
     # 儲存到資料庫
     db_task = ScheduledTask(
         job_id=job_id,
@@ -322,6 +420,7 @@ async def create_recurring_task(
         description=task.description,
         is_recurring=True,
         cron_expression=task.cron_expression,
+        task_params=json.dumps(task_params, ensure_ascii=False),
         status="pending"
     )
     db.add(db_task)

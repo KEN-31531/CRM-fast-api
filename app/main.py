@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse
 from app.routers import customers_router, analysis_router, admin_router, email_router
 from app.routers.campaigns import router as campaigns_router
 from app.routers.tracking import router as tracking_router
-from app.routers.schedules import router as schedules_router
+from app.routers.schedules import router as schedules_router, reload_scheduled_tasks
 from app.database import init_db
 from app.services.scheduler_service import scheduler_service
 
@@ -26,6 +26,10 @@ async def lifespan(app: FastAPI):
     # 初始化並啟動排程器
     scheduler_service.init_scheduler()
     scheduler_service.start()
+
+    # 從資料庫重新載入排程任務
+    await reload_scheduled_tasks()
+
     logger.info("CRM 系統啟動完成")
 
     yield

@@ -1,5 +1,6 @@
 """排程服務 - 使用 APScheduler 管理定時任務"""
 import logging
+import json
 from datetime import datetime
 from typing import Callable, Optional, Any
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -11,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class SchedulerService:
-    """排程服務"""
+    """排程服務（伺服器重啟時從資料庫重新載入）"""
 
     def __init__(self):
         self.scheduler: Optional[AsyncIOScheduler] = None

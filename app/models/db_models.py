@@ -163,6 +163,9 @@ class ScheduledTask(Base):
     is_recurring: Mapped[bool] = mapped_column(Boolean, default=False)
     cron_expression: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
+    # 任務參數（JSON 格式儲存）
+    task_params: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # 狀態: pending, running, completed, failed, cancelled
     status: Mapped[str] = mapped_column(String(50), default="pending")
     last_run_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
