@@ -4,8 +4,9 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 
-# 載入 .env 檔案
-load_dotenv()
+# 載入 .env 檔案（優先載入 .env.local 用於本地測試）
+env_file = ".env.local" if os.path.exists(".env.local") and os.getenv("USE_LOCAL_ENV", "").lower() in ("1", "true") else ".env"
+load_dotenv(env_file)
 
 # 預設使用 PostgreSQL
 DATABASE_URL = os.getenv(
@@ -13,11 +14,16 @@ DATABASE_URL = os.getenv(
     "postgresql+asyncpg://ken@localhost:5432/crm"
 )
 
-# 確保 URL 使用 asyncpg 驅動
+# 確保 URL 使用正確的驅動
 if DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
-engine = create_async_engine(DATABASE_URL, echo=False)
+# SQLite 需要特殊設定
+connect_args = {}
+if DATABASE_URL.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}
+
+engine = create_async_engine(DATABASE_URL, echo=False, connect_args=connect_args)
 
 async_session = async_sessionmaker(
     engine,

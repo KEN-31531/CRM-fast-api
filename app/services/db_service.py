@@ -46,6 +46,294 @@ class DatabaseService:
         await db.commit()
         return {"message": "資料匯入成功"}
 
+    async def import_customers_smart(
+        self,
+        db: AsyncSession,
+        csv_content: str,
+        course_info: dict | None = None
+    ) -> dict:
+        """智慧匯入顧客資料（自動識別欄位）"""
+        import io
+
+        # 解析 CSV
+        df = pd.read_csv(io.StringIO(csv_content), encoding="utf-8", dtype={"電話": str})
+
+        # 欄位名稱對應（支援多種寫法）
+        column_mapping = {
+            "姓名": ["姓名", "名字", "name", "Name"],
+            "電話": ["電話", "手機", "phone", "Phone", "tel", "Tel"],
+            "Email": ["Email", "email", "EMAIL", "信箱", "電子郵件"],
+            "生日": ["生日", "birthday", "Birthday", "出生日期"],
+            "參加活動時間": ["參加活動時間", "活動時間", "時間", "date", "Date"],
+            "是否購買課程": ["是否購買課程", "購買", "是否購買", "purchased"],
+            "課程名稱": ["課程名稱", "課程", "course", "Course"],
+            "課程類型": ["課程類型", "類型", "type", "Type"],
+        }
+
+        # 找到實際欄位名稱
+        def find_column(target):
+            for possible_name in column_mapping.get(target, [target]):
+                if possible_name in df.columns:
+                    return possible_name
+            return None
+
+        # 建立欄位對應
+        col_name = find_column("姓名")
+        col_phone = find_column("電話")
+        col_email = find_column("Email")
+        col_birthday = find_column("生日")
+        col_activity_time = find_column("參加活動時間")
+        col_purchased = find_column("是否購買課程")
+        col_course_name = find_column("課程名稱")
+        col_course_type = find_column("課程類型")
+
+        if not col_name or not col_phone:
+            return {
+                "success": False,
+                "message": "CSV 必須包含「姓名」和「電話」欄位",
+                "imported": 0,
+                "updated": 0
+            }
+
+        imported_count = 0
+        updated_count = 0
+        participation_count = 0
+        errors = []
+
+        # 課程快取
+        course_cache = {}
+
+        # 決定課程資訊來源
+        has_course_columns = col_course_name and col_course_type
+        use_filename_course = course_info and not has_course_columns
+
+        for idx, row in df.iterrows():
+            try:
+                phone = str(row[col_phone]).zfill(10)
+
+                # 檢查顧客是否已存在
+                result = await db.execute(
+                    select(Customer).where(Customer.phone == phone)
+                )
+                customer = result.scalar_one_or_none()
+
+                if not customer:
+                    email_val = row.get(col_email, "") if col_email and pd.notna(row.get(col_email)) else ""
+                    birthday_val = self._parse_date(row[col_birthday]) if col_birthday and pd.notna(row.get(col_birthday)) else None
+
+                    customer = Customer(
+                        name=row[col_name],
+                        phone=phone,
+                        email=email_val,
+                        birthday=birthday_val,
+                    )
+                    db.add(customer)
+                    await db.flush()
+                    imported_count += 1
+                else:
+                    if col_email and pd.notna(row.get(col_email)) and row.get(col_email):
+                        customer.email = row[col_email]
+                    if col_birthday and pd.notna(row.get(col_birthday)) and row.get(col_birthday):
+                        customer.birthday = self._parse_date(row[col_birthday])
+                    updated_count += 1
+
+                # 處理課程參與記錄
+                course_name = None
+                course_type = None
+
+                if has_course_columns:
+                    course_name = row.get(col_course_name) if pd.notna(row.get(col_course_name)) else None
+                    course_type = row.get(col_course_type) if pd.notna(row.get(col_course_type)) else None
+                elif use_filename_course:
+                    course_name = course_info.get("name")
+                    course_type = course_info.get("type")
+
+                if course_name and course_type:
+                    cache_key = f"{course_name}_{course_type}"
+
+                    if cache_key not in course_cache:
+                        result = await db.execute(
+                            select(Course).where(
+                                Course.name == course_name,
+                                Course.course_type == course_type
+                            )
+                        )
+                        course = result.scalar_one_or_none()
+
+                        if not course:
+                            course = Course(name=course_name, course_type=course_type)
+                            db.add(course)
+                            await db.flush()
+
+                        course_cache[cache_key] = course
+                    else:
+                        course = course_cache[cache_key]
+
+                    # 取得活動時間
+                    activity_time = None
+                    if col_activity_time and pd.notna(row.get(col_activity_time)):
+                        activity_time = self._parse_datetime(row[col_activity_time])
+
+                    if activity_time:
+                        result = await db.execute(
+                            select(ActivityParticipation).where(
+                                ActivityParticipation.customer_id == customer.id,
+                                ActivityParticipation.course_id == course.id,
+                                ActivityParticipation.activity_time == activity_time
+                            )
+                        )
+                        existing = result.scalar_one_or_none()
+
+                        if not existing:
+                            purchased = False
+                            if col_purchased and pd.notna(row.get(col_purchased)):
+                                purchased = row[col_purchased] in ["是", "yes", "Yes", "YES", "1", True]
+
+                            participation = ActivityParticipation(
+                                customer_id=customer.id,
+                                course_id=course.id,
+                                activity_time=activity_time,
+                                purchased=purchased,
+                            )
+                            db.add(participation)
+                            participation_count += 1
+
+            except Exception as e:
+                errors.append(f"第 {idx + 2} 行錯誤: {str(e)}")
+
+        await db.commit()
+
+        message = f"匯入完成：新增 {imported_count} 位顧客，更新 {updated_count} 位顧客"
+        if participation_count > 0:
+            message += f"，新增 {participation_count} 筆課程參與記錄"
+        if use_filename_course:
+            message += f"（課程：{course_info['name']} - {course_info['type']}）"
+
+        return {
+            "success": True,
+            "message": message,
+            "imported": imported_count,
+            "updated": updated_count,
+            "participations": participation_count,
+            "errors": errors if errors else None
+        }
+
+    async def import_customers_only(
+        self,
+        db: AsyncSession,
+        csv_content: str
+    ) -> dict:
+        """從 CSV 匯入顧客資料（自動識別格式）"""
+        import io
+
+        # 解析 CSV
+        df = pd.read_csv(io.StringIO(csv_content), encoding="utf-8", dtype={"電話": str})
+
+        # 檢查是否包含課程相關欄位
+        has_course_info = all(col in df.columns for col in ["課程名稱", "課程類型", "參加活動時間", "是否購買課程"])
+
+        imported_count = 0
+        updated_count = 0
+        participation_count = 0
+        errors = []
+
+        # 課程快取
+        course_cache = {}
+
+        for idx, row in df.iterrows():
+            try:
+                phone = str(row["電話"]).zfill(10)
+
+                # 檢查顧客是否已存在
+                result = await db.execute(
+                    select(Customer).where(Customer.phone == phone)
+                )
+                customer = result.scalar_one_or_none()
+
+                if not customer:
+                    customer = Customer(
+                        name=row["姓名"],
+                        phone=phone,
+                        email=row.get("Email", "") if pd.notna(row.get("Email")) else "",
+                        birthday=self._parse_date(row["生日"]) if pd.notna(row.get("生日")) else None,
+                    )
+                    db.add(customer)
+                    await db.flush()
+                    imported_count += 1
+                else:
+                    # 更新現有顧客資料
+                    if pd.notna(row.get("Email")) and row.get("Email"):
+                        customer.email = row["Email"]
+                    if pd.notna(row.get("生日")) and row.get("生日"):
+                        customer.birthday = self._parse_date(row["生日"])
+                    updated_count += 1
+
+                # 如果有課程資訊，建立課程參與記錄
+                if has_course_info and pd.notna(row.get("課程名稱")) and pd.notna(row.get("課程類型")):
+                    course_name = row["課程名稱"]
+                    course_type = row["課程類型"]
+                    cache_key = f"{course_name}_{course_type}"
+
+                    # 從快取或資料庫取得課程
+                    if cache_key not in course_cache:
+                        result = await db.execute(
+                            select(Course).where(
+                                Course.name == course_name,
+                                Course.course_type == course_type
+                            )
+                        )
+                        course = result.scalar_one_or_none()
+
+                        if not course:
+                            course = Course(name=course_name, course_type=course_type)
+                            db.add(course)
+                            await db.flush()
+
+                        course_cache[cache_key] = course
+                    else:
+                        course = course_cache[cache_key]
+
+                    # 檢查是否已有該課程的參與記錄
+                    activity_time = self._parse_datetime(row["參加活動時間"]) if pd.notna(row.get("參加活動時間")) else None
+
+                    if activity_time:
+                        result = await db.execute(
+                            select(ActivityParticipation).where(
+                                ActivityParticipation.customer_id == customer.id,
+                                ActivityParticipation.course_id == course.id,
+                                ActivityParticipation.activity_time == activity_time
+                            )
+                        )
+                        existing = result.scalar_one_or_none()
+
+                        if not existing:
+                            participation = ActivityParticipation(
+                                customer_id=customer.id,
+                                course_id=course.id,
+                                activity_time=activity_time,
+                                purchased=row["是否購買課程"] == "是" if pd.notna(row.get("是否購買課程")) else False,
+                            )
+                            db.add(participation)
+                            participation_count += 1
+
+            except Exception as e:
+                errors.append(f"第 {idx + 2} 行錯誤: {str(e)}")
+
+        await db.commit()
+
+        message = f"匯入完成：新增 {imported_count} 位顧客，更新 {updated_count} 位顧客"
+        if has_course_info:
+            message += f"，新增 {participation_count} 筆課程參與記錄"
+
+        return {
+            "success": True,
+            "message": message,
+            "imported": imported_count,
+            "updated": updated_count,
+            "participations": participation_count if has_course_info else 0,
+            "errors": errors if errors else None
+        }
+
     async def import_customers_from_csv(
         self,
         db: AsyncSession,
@@ -221,8 +509,13 @@ class DatabaseService:
                 "phone": customer.phone,
                 "email": self._mask_email(customer.email) if customer.email else "",
                 "birthday": customer.birthday,
-                "complete_course_participations": complete_times,
-                "experience_course_participations": experience_times,
+                "created_at": customer.created_at.isoformat() if customer.created_at else "",
+                "complete_course_participations": [
+                    {"activity_time": t.isoformat() if t else ""} for t in complete_times
+                ],
+                "experience_course_participations": [
+                    {"activity_time": t.isoformat() if t else ""} for t in experience_times
+                ],
                 "purchased_from_complete": purchased_complete,
                 "purchased_from_experience": purchased_experience,
             })

@@ -22,3 +22,5 @@ crm.db
 # Google API credentials
 credentials.json
 token.json
+.env.local
+local_test.db

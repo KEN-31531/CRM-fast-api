@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CRM 系統</title>
     <link rel="stylesheet" href="/static/css/style.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="container">
@@ -196,47 +197,167 @@
 
             customers: async () => {
                 const data = await fetchAPI('/customers/');
+                window.customerData = data; // 儲存資料供排序使用
                 return `
                     <div class="page-header">
                         <h2>顧客列表</h2>
                         <p>所有顧客及其活動參與記錄</p>
                     </div>
+
+                    <!-- 工具列 -->
+                    <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
+                        <button onclick="openAddCustomerModal()" style="padding:10px 20px;background:linear-gradient(135deg,#4a9595,#5CADAD);color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px;">
+                            + 新增顧客
+                        </button>
+                        <button onclick="deleteSelectedCustomers()" id="delete-selected-btn" style="padding:10px 20px;background:#e53e3e;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px;display:none;">
+                            刪除選取 (<span id="selected-count">0</span>)
+                        </button>
+                        <button onclick="deleteAllCustomers()" style="padding:10px 20px;background:white;color:#e53e3e;border:1px solid #e53e3e;border-radius:8px;cursor:pointer;font-size:14px;">
+                            刪除全部
+                        </button>
+                        <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+                            <label style="font-size:14px;color:#666;">排序：</label>
+                            <select id="sort-field" onchange="sortCustomers()" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px;">
+                                <option value="name">姓名</option>
+                                <option value="phone">電話</option>
+                                <option value="birthday">生日</option>
+                                <option value="created_at" selected>建立時間</option>
+                                <option value="activity_time">活動時間</option>
+                            </select>
+                            <select id="sort-order" onchange="sortCustomers()" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px;">
+                                <option value="desc">新→舊</option>
+                                <option value="asc">舊→新</option>
+                            </select>
+                        </div>
+                    </div>
+
                     <div class="table-container">
                         <div class="table-header">
-                            <div class="table-title">顧客資料 (${data.length} 筆)</div>
+                            <div class="table-title">顧客資料 (<span id="customer-count">${data.length}</span> 筆)</div>
                         </div>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>姓名</th>
-                                    <th>電話</th>
-                                    <th>Email</th>
-                                    <th>生日</th>
-                                    <th>完整課程</th>
-                                    <th>體驗課程</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${data.map(c => `
+                        <div style="max-height:500px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;">
+                            <table style="width:100%;">
+                                <thead style="position:sticky;top:0;background:white;z-index:10;box-shadow:0 1px 2px rgba(0,0,0,0.1);">
                                     <tr>
-                                        <td>${c.name}</td>
-                                        <td>${c.phone}</td>
-                                        <td>${c.email || '-'}</td>
-                                        <td>${c.birthday}</td>
-                                        <td>
-                                            ${c.complete_course_participations.length > 0
-                                                ? `<span class="badge ${c.purchased_from_complete ? 'badge-success' : 'badge-warning'}">${c.purchased_from_complete ? '已購買' : '未購買'}</span>`
-                                                : '-'}
-                                        </td>
-                                        <td>
-                                            ${c.experience_course_participations.length > 0
-                                                ? `<span class="badge ${c.purchased_from_experience ? 'badge-success' : 'badge-warning'}">${c.purchased_from_experience ? '已購買' : '未購買'}</span>`
-                                                : '-'}
-                                        </td>
+                                        <th style="width:40px;"><input type="checkbox" id="select-all" onchange="toggleSelectAll(this)"></th>
+                                        <th>姓名</th>
+                                        <th>電話</th>
+                                        <th>Email</th>
+                                        <th>生日</th>
+                                        <th>完整課程</th>
+                                        <th>體驗課程</th>
+                                        <th style="width:80px;white-space:nowrap;">操作</th>
                                     </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody id="customer-tbody">
+                                    ${renderCustomerRows(data)}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- 新增顧客 Modal -->
+                    <div id="add-customer-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;justify-content:center;align-items:center;">
+                        <div style="background:white;border-radius:12px;max-width:450px;width:90%;padding:24px;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                                <h3 style="margin:0;">新增顧客</h3>
+                                <button onclick="closeAddCustomerModal()" style="background:none;border:none;font-size:24px;cursor:pointer;">&times;</button>
+                            </div>
+                            <form id="add-customer-form">
+                                <div style="margin-bottom:16px;">
+                                    <label style="display:block;margin-bottom:4px;font-weight:500;">姓名 *</label>
+                                    <input type="text" name="name" required style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;box-sizing:border-box;">
+                                </div>
+                                <div style="margin-bottom:16px;">
+                                    <label style="display:block;margin-bottom:4px;font-weight:500;">電話 *</label>
+                                    <input type="tel" name="phone" required pattern="[0-9]{10}" placeholder="0912345678" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;box-sizing:border-box;">
+                                </div>
+                                <div style="margin-bottom:16px;">
+                                    <label style="display:block;margin-bottom:4px;font-weight:500;">Email</label>
+                                    <input type="email" name="email" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;box-sizing:border-box;">
+                                </div>
+                                <div style="margin-bottom:16px;">
+                                    <label style="display:block;margin-bottom:4px;font-weight:500;">生日</label>
+                                    <input type="date" name="birthday" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;box-sizing:border-box;">
+                                </div>
+                                <div style="margin-bottom:16px;">
+                                    <label style="display:block;margin-bottom:4px;font-weight:500;">課程歸類</label>
+                                    <div style="display:flex;gap:12px;">
+                                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                                            <input type="checkbox" name="complete_course" value="1">
+                                            <span>完整課程</span>
+                                        </label>
+                                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                                            <input type="checkbox" name="experience_course" value="1">
+                                            <span>體驗課程</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div style="display:flex;gap:12px;justify-content:flex-end;">
+                                    <button type="button" onclick="closeAddCustomerModal()" style="padding:10px 20px;border:1px solid #e2e8f0;border-radius:6px;background:white;cursor:pointer;">取消</button>
+                                    <button type="submit" style="padding:10px 20px;border:none;border-radius:6px;background:#4a9595;color:white;cursor:pointer;">新增</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- 編輯顧客 Modal -->
+                    <div id="edit-customer-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;justify-content:center;align-items:center;">
+                        <div style="background:white;border-radius:12px;max-width:500px;width:90%;padding:24px;max-height:90vh;overflow-y:auto;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                                <h3 style="margin:0;">編輯顧客</h3>
+                                <button onclick="closeEditCustomerModal()" style="background:none;border:none;font-size:24px;cursor:pointer;">&times;</button>
+                            </div>
+                            <form id="edit-customer-form">
+                                <input type="hidden" name="customer_id">
+                                <div style="margin-bottom:16px;">
+                                    <label style="display:block;margin-bottom:4px;font-weight:500;">姓名 *</label>
+                                    <input type="text" name="name" required style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;box-sizing:border-box;">
+                                </div>
+                                <div style="margin-bottom:16px;">
+                                    <label style="display:block;margin-bottom:4px;font-weight:500;">電話 *</label>
+                                    <input type="tel" name="phone" required style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;box-sizing:border-box;">
+                                </div>
+                                <div style="margin-bottom:16px;">
+                                    <label style="display:block;margin-bottom:4px;font-weight:500;">Email</label>
+                                    <input type="email" name="email" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;box-sizing:border-box;">
+                                </div>
+                                <div style="margin-bottom:16px;">
+                                    <label style="display:block;margin-bottom:4px;font-weight:500;">生日</label>
+                                    <input type="date" name="birthday" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;box-sizing:border-box;">
+                                </div>
+                                <div style="margin-bottom:16px;padding:16px;background:#f7fafc;border-radius:8px;">
+                                    <label style="display:block;margin-bottom:8px;font-weight:500;">完整課程</label>
+                                    <div style="display:flex;gap:16px;">
+                                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                                            <input type="checkbox" name="complete_course" value="1">
+                                            <span>已參加</span>
+                                        </label>
+                                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                                            <input type="checkbox" name="complete_purchased" value="1">
+                                            <span>已購買</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div style="margin-bottom:16px;padding:16px;background:#f7fafc;border-radius:8px;">
+                                    <label style="display:block;margin-bottom:8px;font-weight:500;">體驗課程</label>
+                                    <div style="display:flex;gap:16px;">
+                                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                                            <input type="checkbox" name="experience_course" value="1">
+                                            <span>已參加</span>
+                                        </label>
+                                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                                            <input type="checkbox" name="experience_purchased" value="1">
+                                            <span>已購買</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div style="display:flex;gap:12px;justify-content:flex-end;">
+                                    <button type="button" onclick="closeEditCustomerModal()" style="padding:10px 20px;border:1px solid #e2e8f0;border-radius:6px;background:white;cursor:pointer;">取消</button>
+                                    <button type="submit" style="padding:10px 20px;border:none;border-radius:6px;background:#5CADAD;color:white;cursor:pointer;">儲存變更</button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 `;
             },
@@ -245,6 +366,8 @@
                 const complete = await fetchAPI('/customers/');
                 const completeCourse = complete.filter(c => c.complete_course_participations.length > 0);
                 const experienceCourse = complete.filter(c => c.experience_course_participations.length > 0);
+                const completePurchased = complete.filter(c => c.purchased_from_complete).length;
+                const experiencePurchased = complete.filter(c => c.purchased_from_experience).length;
 
                 return `
                     <div class="page-header">
@@ -255,10 +378,12 @@
                         <div class="card">
                             <div class="card-title">聖誕節蛋糕製作完整課程</div>
                             <div class="card-value">${completeCourse.length} <span style="font-size:1rem;color:#666">人參與</span></div>
+                            <div class="card-subtitle">已購買：${completePurchased} 人</div>
                         </div>
                         <div class="card">
                             <div class="card-title">聖誕節蛋糕製作體驗課程</div>
                             <div class="card-value">${experienceCourse.length} <span style="font-size:1rem;color:#666">人參與</span></div>
+                            <div class="card-subtitle">已購買：${experiencePurchased} 人</div>
                         </div>
                     </div>
                 `;
@@ -266,10 +391,29 @@
 
             analysis: async () => {
                 const data = await fetchAPI('/analysis/summary');
+
+                // 課程價格
+                const COMPLETE_PRICE = 36800;
+                const EXPERIENCE_PRICE = 600;
+
+                // 計算收入
+                const completeRevenue = data.complete_course_purchased_count * COMPLETE_PRICE;
+                const experienceRevenue = data.experience_course_purchased_count * EXPERIENCE_PRICE;
+                const totalRevenue = completeRevenue + experienceRevenue;
+
+                // 儲存資料供圖表使用
+                window.revenueData = {
+                    completeRevenue,
+                    experienceRevenue,
+                    totalRevenue,
+                    completePurchased: data.complete_course_purchased_count,
+                    experiencePurchased: data.experience_course_purchased_count
+                };
+
                 return `
                     <div class="page-header">
                         <h2>購買分析</h2>
-                        <p>課程購買統計</p>
+                        <p>課程購買統計與金流收入</p>
                     </div>
                     <div class="card-grid">
                         <div class="card">
@@ -283,6 +427,35 @@
                             <div class="card-subtitle">${data.experience_course_purchased_count} / ${data.total_experience_course_participants} 人購買</div>
                         </div>
                     </div>
+
+                    <!-- 金流收入區塊 -->
+                    <div class="card" style="margin-top:24px;">
+                        <div class="card-title" style="font-size:1.1rem;font-weight:600;margin-bottom:20px;">金流收入統計</div>
+                        <div style="display:flex;gap:40px;align-items:center;flex-wrap:wrap;">
+                            <div style="width:250px;height:250px;">
+                                <canvas id="revenueChart"></canvas>
+                            </div>
+                            <div style="flex:1;min-width:280px;">
+                                <div style="background:#f8fafa;border-radius:12px;padding:20px;margin-bottom:16px;">
+                                    <div style="font-size:14px;color:#666;margin-bottom:8px;">總收入</div>
+                                    <div style="font-size:32px;font-weight:700;color:#4a9595;">NT$ ${totalRevenue.toLocaleString()}</div>
+                                </div>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                                    <div style="background:#e8f5f5;border-radius:8px;padding:16px;">
+                                        <div style="font-size:12px;color:#666;margin-bottom:4px;">完整課程收入</div>
+                                        <div style="font-size:20px;font-weight:600;color:#4a9595;">NT$ ${completeRevenue.toLocaleString()}</div>
+                                        <div style="font-size:12px;color:#888;margin-top:4px;">${data.complete_course_purchased_count} 人 × NT$${COMPLETE_PRICE.toLocaleString()}</div>
+                                    </div>
+                                    <div style="background:#fef5e7;border-radius:8px;padding:16px;">
+                                        <div style="font-size:12px;color:#666;margin-bottom:4px;">體驗課程收入</div>
+                                        <div style="font-size:20px;font-weight:600;color:#dd6b20;">NT$ ${experienceRevenue.toLocaleString()}</div>
+                                        <div style="font-size:12px;color:#888;margin-top:4px;">${data.experience_course_purchased_count} 人 × NT$${EXPERIENCE_PRICE.toLocaleString()}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="insights-container">
                         <div class="insights-title">顧客重疊分析</div>
                         <div class="insight-item">
@@ -369,7 +542,7 @@
                                     cursor: pointer;
                                     font-size: 16px;
                                     transition: all 0.2s;
-                                " onmouseover="this.style.borderColor='#3182ce'" onmouseout="this.style.borderColor=this.classList.contains('selected')?'#3182ce':'#e2e8f0'">
+                                " onmouseover="this.style.borderColor='#5CADAD'" onmouseout="this.style.borderColor=this.classList.contains('selected')?'#5CADAD':'#e2e8f0'">
                                     ${f.emoji} ${f.name}
                                 </button>
                             `).join('')}
@@ -378,14 +551,30 @@
 
                     <div class="card" style="margin-bottom: 24px;">
                         <div class="card-title" style="margin-bottom: 16px;">自訂訊息（選填）</div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🎉')" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;background:white;cursor:pointer;font-size:18px;">🎉</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🎁')" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;background:white;cursor:pointer;font-size:18px;">🎁</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🎄')" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;background:white;cursor:pointer;font-size:18px;">🎄</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🧧')" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;background:white;cursor:pointer;font-size:18px;">🧧</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🎂')" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;background:white;cursor:pointer;font-size:18px;">🎂</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('❤️')" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;background:white;cursor:pointer;font-size:18px;">❤️</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('✨')" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;background:white;cursor:pointer;font-size:18px;">✨</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🌟')" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;background:white;cursor:pointer;font-size:18px;">🌟</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('💝')" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;background:white;cursor:pointer;font-size:18px;">💝</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🎊')" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;background:white;cursor:pointer;font-size:18px;">🎊</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🥳')" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;background:white;cursor:pointer;font-size:18px;">🥳</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('💰')" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;background:white;cursor:pointer;font-size:18px;">💰</button>
+                        </div>
                         <textarea id="custom-message" placeholder="輸入額外的祝福訊息..." style="
                             width: 100%;
-                            min-height: 100px;
+                            min-height: 250px;
                             padding: 12px;
                             border: 1px solid #e2e8f0;
                             border-radius: 8px;
                             font-size: 14px;
+                            line-height: 1.6;
                             resize: vertical;
+                            box-sizing: border-box;
                         "></textarea>
                     </div>
 
@@ -412,7 +601,7 @@
                     </div>
 
                     <button id="send-greeting-btn" style="
-                        background: linear-gradient(135deg, #1a365d 0%, #2d4a6f 100%);
+                        background: linear-gradient(135deg, #4a9595 0%, #5CADAD 100%);
                         color: white;
                         border: none;
                         padding: 14px 32px;
@@ -450,7 +639,7 @@
                     </div>
 
                     <button id="create-campaign-btn" style="
-                        background: linear-gradient(135deg, #1a365d 0%, #2d4a6f 100%);
+                        background: linear-gradient(135deg, #4a9595 0%, #5CADAD 100%);
                         color: white;
                         border: none;
                         padding: 12px 24px;
@@ -494,7 +683,7 @@
                                         <td>
                                             <button onclick="viewCampaignStats(${c.id})" style="padding:4px 8px;font-size:12px;cursor:pointer;">統計</button>
                                             ${c.status === 'draft' ? `
-                                                <button onclick="sendCampaignNow(${c.id})" style="padding:4px 8px;font-size:12px;cursor:pointer;background:#3182ce;color:white;border:none;border-radius:4px;">發送</button>
+                                                <button onclick="sendCampaignNow(${c.id})" style="padding:4px 8px;font-size:12px;cursor:pointer;background:#5CADAD;color:white;border:none;border-radius:4px;">發送</button>
                                             ` : ''}
                                         </td>
                                     </tr>
@@ -576,7 +765,7 @@
                                 </div>
                                 <div style="display:flex;gap:12px;justify-content:flex-end;">
                                     <button type="button" onclick="closeCampaignModal()" style="padding:10px 20px;border:1px solid #e2e8f0;border-radius:6px;background:white;cursor:pointer;">取消</button>
-                                    <button type="submit" style="padding:10px 20px;border:none;border-radius:6px;background:#1a365d;color:white;cursor:pointer;">建立活動</button>
+                                    <button type="submit" style="padding:10px 20px;border:none;border-radius:6px;background:#4a9595;color:white;cursor:pointer;">建立活動</button>
                                 </div>
                             </form>
                         </div>
@@ -611,7 +800,7 @@
                     </div>
 
                     <button id="create-schedule-btn" style="
-                        background: linear-gradient(135deg, #1a365d 0%, #2d4a6f 100%);
+                        background: linear-gradient(135deg, #4a9595 0%, #5CADAD 100%);
                         color: white;
                         border: none;
                         padding: 12px 24px;
@@ -749,12 +938,14 @@
                                 <!-- 單次執行：日期時間選擇 -->
                                 <div id="once-section">
                                     <label style="display:block;margin-bottom:8px;font-weight:500;">執行時間</label>
-                                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
                                         <select name="year" style="padding:10px;border:1px solid #e2e8f0;border-radius:6px;min-width:90px;"></select>
                                         <select name="month" style="padding:10px;border:1px solid #e2e8f0;border-radius:6px;min-width:70px;"></select>
                                         <select name="day" style="padding:10px;border:1px solid #e2e8f0;border-radius:6px;min-width:70px;"></select>
                                         <select name="hour" style="padding:10px;border:1px solid #e2e8f0;border-radius:6px;min-width:70px;"></select>
-                                        <select name="minute" style="padding:10px;border:1px solid #e2e8f0;border-radius:6px;min-width:70px;"></select>
+                                        <div style="position:relative;">
+                                            <select name="minute" id="minute-select" style="padding:10px;border:1px solid #e2e8f0;border-radius:6px;min-width:70px;"></select>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -793,7 +984,7 @@
 
                                 <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:24px;">
                                     <button type="button" onclick="closeScheduleModal()" style="padding:10px 20px;border:1px solid #e2e8f0;border-radius:6px;background:white;cursor:pointer;">取消</button>
-                                    <button type="submit" style="padding:10px 20px;border:none;border-radius:6px;background:#1a365d;color:white;cursor:pointer;">建立排程</button>
+                                    <button type="submit" style="padding:10px 20px;border:none;border-radius:6px;background:#4a9595;color:white;cursor:pointer;">建立排程</button>
                                 </div>
                             </form>
                         </div>
@@ -812,34 +1003,18 @@
                         <div class="card-title">上傳 CSV 檔案</div>
                         <form id="import-form" style="margin-top: 16px;">
                             <div style="margin-bottom: 16px;">
-                                <label style="display:block;margin-bottom:8px;font-weight:500;">課程名稱</label>
-                                <input type="text" name="course_name" required
-                                    placeholder="例如：聖誕節蛋糕製作完整課程"
-                                    style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;box-sizing:border-box;">
-                            </div>
-
-                            <div style="margin-bottom: 16px;">
-                                <label style="display:block;margin-bottom:8px;font-weight:500;">課程類型</label>
-                                <select name="course_type" required style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;">
-                                    <option value="">請選擇...</option>
-                                    <option value="完整課程">完整課程</option>
-                                    <option value="體驗課程">體驗課程</option>
-                                </select>
-                            </div>
-
-                            <div style="margin-bottom: 16px;">
                                 <label style="display:block;margin-bottom:8px;font-weight:500;">選擇 CSV 檔案</label>
                                 <input type="file" name="file" accept=".csv" required
                                     style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;box-sizing:border-box;">
                                 <p style="margin-top:8px;font-size:12px;color:#666;">
-                                    CSV 格式：姓名,電話,Email,生日,參加活動時間,是否購買課程
+                                    CSV 格式：姓名,電話,Email,生日
                                 </p>
                             </div>
 
                             <button type="submit" style="
                                 width: 100%;
                                 padding: 12px;
-                                background: linear-gradient(135deg, #1a365d 0%, #2d4a6f 100%);
+                                background: linear-gradient(135deg, #4a9595 0%, #5CADAD 100%);
                                 color: white;
                                 border: none;
                                 border-radius: 8px;
@@ -852,10 +1027,21 @@
                     </div>
 
                     <div class="card" style="max-width: 600px; margin-top: 24px;">
-                        <div class="card-title">CSV 格式範例</div>
-                        <pre style="background:#f7fafc;padding:12px;border-radius:6px;font-size:12px;overflow-x:auto;margin-top:12px;">姓名,電話,Email,生日,參加活動時間,是否購買課程
-王小明,0912345678,wang@example.com,1990/01/15,2024/12/25 14:00,是
-李小華,0923456789,li@example.com,1985/05/20,2024/12/25 14:00,否</pre>
+                        <div class="card-title">智慧匯入說明</div>
+                        <div style="margin:12px 0;padding:12px;background:#e6fffa;border-radius:6px;font-size:13px;color:#234e52;">
+                            <strong>自動識別功能：</strong>
+                            <ul style="margin:8px 0 0 16px;padding:0;">
+                                <li>欄位順序不限，自動對應</li>
+                                <li>從檔名提取課程資訊（如「聖誕節蛋糕製作完整課程名單.csv」）</li>
+                            </ul>
+                        </div>
+                        <p style="margin:16px 0 8px;font-size:13px;color:#666;">必要欄位：姓名、電話</p>
+                        <p style="margin:8px 0;font-size:13px;color:#666;">選填欄位：Email、生日、參加活動時間、是否購買課程</p>
+                        <pre style="background:#f7fafc;padding:12px;border-radius:6px;font-size:12px;overflow-x:auto;margin-top:12px;">姓名,電話,生日,Email,參加活動時間,是否購買課程
+王小明,0912345678,1990/01/15,wang@example.com,2024/12/25 14:00,是</pre>
+                        <p style="margin:12px 0 0;font-size:12px;color:#888;">
+                            提示：檔名包含「完整課程」或「體驗課程」會自動建立課程記錄
+                        </p>
                     </div>
                 `;
             }
@@ -899,6 +1085,12 @@
                     initSchedulesPage();
                 } else if (page === 'import') {
                     initImportPage();
+                } else if (page === 'customers') {
+                    initCustomersPage();
+                } else if (page === 'courses') {
+                    // courses page doesn't need chart anymore
+                } else if (page === 'analysis') {
+                    initAnalysisPage();
                 }
             } catch (error) {
                 document.getElementById('page-content').innerHTML = `
@@ -918,10 +1110,83 @@
             });
         });
 
+        // 插入表情符號到訊息框
+        function insertEmoji(emoji) {
+            const textarea = document.getElementById('custom-message');
+            if (!textarea) return;
+
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const text = textarea.value;
+
+            textarea.value = text.substring(0, start) + emoji + text.substring(end);
+            textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+            textarea.focus();
+        }
+
         // Greeting page initialization
         let selectedFestival = null;
 
         function initGreetingPage() {
+            // 節慶範例訊息
+            const festivalMessages = {
+                'christmas': `🎄 聖誕快樂！
+
+親愛的顧客您好，
+
+感謝您一直以來的支持與愛護！
+在這溫馨的聖誕佳節，我們由衷地祝福您：
+闔家平安、幸福美滿！
+
+願這個聖誕節為您帶來滿滿的喜悅與祝福 🎁
+
+新的一年即將來臨，期待繼續為您服務！`,
+
+                'new_year': `🧧 新年快樂！
+
+親愛的顧客您好，
+
+金龍賀歲迎新春！
+感謝您過去一年的支持與信任！
+
+祝您新的一年：
+🎊 身體健康、萬事如意
+🎊 財源廣進、心想事成
+🎊 闔家歡樂、幸福美滿
+
+恭喜發財！紅包拿來！`,
+
+                'double11': `🛒 雙11購物節驚喜優惠！
+
+親愛的顧客您好，
+
+一年一度的雙11購物節來啦！🎉
+
+我們為您準備了超值優惠：
+✨ 全館課程限時特價
+✨ 滿額再享折扣
+✨ 多重好禮等您來拿
+
+錯過今天，再等一年！
+趕快把握這次難得的優惠機會！
+
+活動期間：11/11 限定一天`,
+
+                'birthday': `🎂 生日快樂！
+
+親愛的壽星您好，
+
+今天是您的大日子！🎉
+我們全體團隊在此獻上最誠摯的祝福：
+
+🎈 生日快樂！
+🎈 願您的每一天都充滿歡笑與幸福
+🎈 願所有美好的事物都屬於您
+
+為慶祝您的生日，我們特別準備了專屬優惠！
+期待您的光臨，讓我們一起慶祝！`
+            };
+
             // Festival selection
             document.querySelectorAll('.festival-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
@@ -931,9 +1196,15 @@
                         b.style.background = 'white';
                     });
                     btn.classList.add('selected');
-                    btn.style.borderColor = '#3182ce';
-                    btn.style.background = '#ebf8ff';
+                    btn.style.borderColor = '#5CADAD';
+                    btn.style.background = '#e8f5f5';
                     selectedFestival = btn.dataset.festival;
+
+                    // 自動填入範例訊息
+                    const messageTextarea = document.getElementById('custom-message');
+                    if (festivalMessages[selectedFestival]) {
+                        messageTextarea.value = festivalMessages[selectedFestival];
+                    }
                 });
             });
 
@@ -1354,18 +1625,28 @@
         }
 
         function toggleScheduleType(type) {
-            document.getElementById('once-section').style.display = type === 'once' ? 'block' : 'none';
-            document.getElementById('recurring-section').style.display = type === 'recurring' ? 'block' : 'none';
+            const once = document.getElementById('once-section');
+            const recurring = document.getElementById('recurring-section');
+            if (once) once.style.display = type === 'once' ? 'block' : 'none';
+            if (recurring) recurring.style.display = type === 'recurring' ? 'block' : 'none';
         }
 
         function closeScheduleModal() {
-            document.getElementById('schedule-modal').style.display = 'none';
-            document.getElementById('schedule-form').reset();
-            document.getElementById('custom-task-type').style.display = 'none';
-            document.getElementById('weekday-select').style.display = 'none';
-            document.getElementById('monthday-select').style.display = 'none';
-            document.getElementById('recipient-section').style.display = 'none';
-            document.getElementById('email-content-section').style.display = 'none';
+            const modal = document.getElementById('schedule-modal');
+            const form = document.getElementById('schedule-form');
+            const customType = document.getElementById('custom-task-type');
+            const weekday = document.getElementById('weekday-select');
+            const monthday = document.getElementById('monthday-select');
+            const recipient = document.getElementById('recipient-section');
+            const emailContent = document.getElementById('email-content-section');
+
+            if (modal) modal.style.display = 'none';
+            if (form) form.reset();
+            if (customType) customType.style.display = 'none';
+            if (weekday) weekday.style.display = 'none';
+            if (monthday) monthday.style.display = 'none';
+            if (recipient) recipient.style.display = 'none';
+            if (emailContent) emailContent.style.display = 'none';
             toggleScheduleType('once');
         }
 
@@ -1382,15 +1663,7 @@
                 const formData = new FormData(form);
 
                 // 驗證
-                if (!formData.get('course_name')) {
-                    alert('請輸入課程名稱');
-                    return;
-                }
-                if (!formData.get('course_type')) {
-                    alert('請選擇課程類型');
-                    return;
-                }
-                if (!formData.get('file')) {
+                if (!formData.get('file') || !formData.get('file').name) {
                     alert('請選擇 CSV 檔案');
                     return;
                 }
@@ -1448,13 +1721,348 @@
             });
         }
 
+        // Customer management functions
+        function openAddCustomerModal() {
+            document.getElementById('add-customer-modal').style.display = 'flex';
+            document.getElementById('add-customer-form').reset();
+        }
+
+        function closeAddCustomerModal() {
+            document.getElementById('add-customer-modal').style.display = 'none';
+        }
+
+        async function openEditCustomerModal(customerId) {
+            try {
+                const response = await fetch(`/customers/detail/${customerId}`);
+                const customer = await response.json();
+
+                if (!response.ok) {
+                    alert('載入顧客資料失敗');
+                    return;
+                }
+
+                const form = document.getElementById('edit-customer-form');
+                form.querySelector('[name="customer_id"]').value = customer.id;
+                form.querySelector('[name="name"]').value = customer.name;
+                form.querySelector('[name="phone"]').value = customer.phone;
+                form.querySelector('[name="email"]').value = customer.email || '';
+                form.querySelector('[name="birthday"]').value = customer.birthday || '';
+                form.querySelector('[name="complete_course"]').checked = customer.complete_course;
+                form.querySelector('[name="complete_purchased"]').checked = customer.complete_purchased;
+                form.querySelector('[name="experience_course"]').checked = customer.experience_course;
+                form.querySelector('[name="experience_purchased"]').checked = customer.experience_purchased;
+
+                document.getElementById('edit-customer-modal').style.display = 'flex';
+            } catch (error) {
+                alert('載入顧客資料失敗：' + error.message);
+            }
+        }
+
+        function closeEditCustomerModal() {
+            document.getElementById('edit-customer-modal').style.display = 'none';
+        }
+
+        // 渲染顧客表格列
+        function renderCustomerRows(data) {
+            return data.map(c => `
+                <tr>
+                    <td><input type="checkbox" class="customer-checkbox" value="${c.id}" onchange="updateSelectedCount()"></td>
+                    <td>${c.name}</td>
+                    <td>${c.phone}</td>
+                    <td>${c.email || '-'}</td>
+                    <td>${c.birthday}</td>
+                    <td>
+                        ${c.complete_course_participations.length > 0
+                            ? `<span class="badge ${c.purchased_from_complete ? 'badge-success' : 'badge-warning'}">${c.purchased_from_complete ? '已購買' : '未購買'}</span>`
+                            : '-'}
+                    </td>
+                    <td>
+                        ${c.experience_course_participations.length > 0
+                            ? `<span class="badge ${c.purchased_from_experience ? 'badge-success' : 'badge-warning'}">${c.purchased_from_experience ? '已購買' : '未購買'}</span>`
+                            : '-'}
+                    </td>
+                    <td style="white-space:nowrap;">
+                        <button onclick="openEditCustomerModal(${c.id})" style="padding:6px 12px;background:#1a365d;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px;white-space:nowrap;">編輯</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // 排序顧客列表
+        function sortCustomers() {
+            if (!window.customerData) return;
+
+            const field = document.getElementById('sort-field').value;
+            const order = document.getElementById('sort-order').value;
+
+            const sortedData = [...window.customerData].sort((a, b) => {
+                let valA, valB;
+
+                switch (field) {
+                    case 'name':
+                        valA = a.name || '';
+                        valB = b.name || '';
+                        break;
+                    case 'phone':
+                        valA = a.phone || '';
+                        valB = b.phone || '';
+                        break;
+                    case 'birthday':
+                        valA = a.birthday || '';
+                        valB = b.birthday || '';
+                        break;
+                    case 'created_at':
+                        valA = a.created_at || '';
+                        valB = b.created_at || '';
+                        break;
+                    case 'activity_time':
+                        // 取最近一次活動時間
+                        const aComplete = a.complete_course_participations[0]?.activity_time || '';
+                        const aExp = a.experience_course_participations[0]?.activity_time || '';
+                        const bComplete = b.complete_course_participations[0]?.activity_time || '';
+                        const bExp = b.experience_course_participations[0]?.activity_time || '';
+                        valA = aComplete > aExp ? aComplete : aExp;
+                        valB = bComplete > bExp ? bComplete : bExp;
+                        break;
+                    default:
+                        valA = a.name || '';
+                        valB = b.name || '';
+                }
+
+                if (valA < valB) return order === 'asc' ? -1 : 1;
+                if (valA > valB) return order === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            // 更新表格內容
+            const tbody = document.getElementById('customer-tbody');
+            tbody.innerHTML = renderCustomerRows(sortedData);
+
+            // 重置選取狀態
+            updateSelectedCount();
+        }
+
+        function toggleSelectAll(checkbox) {
+            const checkboxes = document.querySelectorAll('.customer-checkbox');
+            checkboxes.forEach(cb => cb.checked = checkbox.checked);
+            updateSelectedCount();
+        }
+
+        function updateSelectedCount() {
+            const selected = document.querySelectorAll('.customer-checkbox:checked');
+            const count = selected.length;
+            const btn = document.getElementById('delete-selected-btn');
+            const countSpan = document.getElementById('selected-count');
+
+            if (count > 0) {
+                btn.style.display = 'inline-block';
+                countSpan.textContent = count;
+            } else {
+                btn.style.display = 'none';
+            }
+
+            // Update select-all checkbox state
+            const allCheckboxes = document.querySelectorAll('.customer-checkbox');
+            const selectAll = document.getElementById('select-all');
+            if (selectAll) {
+                selectAll.checked = allCheckboxes.length > 0 && count === allCheckboxes.length;
+                selectAll.indeterminate = count > 0 && count < allCheckboxes.length;
+            }
+        }
+
+        async function deleteSelectedCustomers() {
+            const selected = document.querySelectorAll('.customer-checkbox:checked');
+            const ids = Array.from(selected).map(cb => parseInt(cb.value));
+
+            if (ids.length === 0) {
+                alert('請選擇要刪除的顧客');
+                return;
+            }
+
+            if (!confirm(`確定要刪除選取的 ${ids.length} 位顧客嗎？\n此操作無法復原！`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/customers/', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    alert(result.message);
+                    navigateToPage('customers');
+                } else {
+                    alert('刪除失敗：' + (result.detail || result.message));
+                }
+            } catch (error) {
+                alert('刪除失敗：' + error.message);
+            }
+        }
+
+        async function deleteAllCustomers() {
+            if (!confirm('確定要刪除所有顧客嗎？\n此操作無法復原！')) {
+                return;
+            }
+
+            if (!confirm('再次確認：這將刪除所有顧客資料！')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/customers/all', {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    alert(result.message);
+                    navigateToPage('customers');
+                } else {
+                    alert('刪除失敗：' + (result.detail || result.message));
+                }
+            } catch (error) {
+                alert('刪除失敗：' + error.message);
+            }
+        }
+
+        function initAnalysisPage() {
+            // 建立收入圓餅圖
+            const ctx = document.getElementById('revenueChart');
+            if (ctx && window.revenueData && typeof Chart !== 'undefined') {
+                const { completeRevenue, experienceRevenue } = window.revenueData;
+
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['完整課程', '體驗課程'],
+                        datasets: [{
+                            data: [completeRevenue, experienceRevenue],
+                            backgroundColor: ['#5CADAD', '#dd6b20'],
+                            borderWidth: 0,
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    padding: 20,
+                                    usePointStyle: true,
+                                    font: { size: 13 }
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const value = context.raw;
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = ((value / total) * 100).toFixed(1);
+                                        return `NT$ ${value.toLocaleString()} (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function initCustomersPage() {
+            // 新增顧客表單
+            const addForm = document.getElementById('add-customer-form');
+            if (addForm) {
+                addForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+
+                    const formData = new FormData(addForm);
+                    const data = {
+                        name: formData.get('name'),
+                        phone: formData.get('phone'),
+                        email: formData.get('email') || '',
+                        birthday: formData.get('birthday') || null,
+                        complete_course: formData.get('complete_course') === '1',
+                        experience_course: formData.get('experience_course') === '1'
+                    };
+
+                    try {
+                        const response = await fetch('/customers/', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(data)
+                        });
+
+                        const result = await response.json();
+
+                        if (response.ok && result.success) {
+                            alert(result.message);
+                            closeAddCustomerModal();
+                            navigateToPage('customers');
+                        } else {
+                            alert('新增失敗：' + (result.detail || result.message));
+                        }
+                    } catch (error) {
+                        alert('新增失敗：' + error.message);
+                    }
+                });
+            }
+
+            // 編輯顧客表單
+            const editForm = document.getElementById('edit-customer-form');
+            if (editForm) {
+                editForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+
+                    const formData = new FormData(editForm);
+                    const customerId = formData.get('customer_id');
+                    const data = {
+                        name: formData.get('name'),
+                        phone: formData.get('phone'),
+                        email: formData.get('email') || '',
+                        birthday: formData.get('birthday') || null,
+                        complete_course: formData.get('complete_course') === '1',
+                        complete_purchased: formData.get('complete_purchased') === '1',
+                        experience_course: formData.get('experience_course') === '1',
+                        experience_purchased: formData.get('experience_purchased') === '1'
+                    };
+
+                    try {
+                        const response = await fetch(`/customers/${customerId}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(data)
+                        });
+
+                        const result = await response.json();
+
+                        if (response.ok && result.success) {
+                            alert(result.message);
+                            closeEditCustomerModal();
+                            navigateToPage('customers');
+                        } else {
+                            alert('更新失敗：' + (result.detail || result.message));
+                        }
+                    } catch (error) {
+                        alert('更新失敗：' + error.message);
+                    }
+                });
+            }
+        }
+
         async function viewCampaignStats(campaignId) {
             try {
                 const stats = await fetchAPI(`/campaigns/${campaignId}/stats`);
                 const content = `
                     <div class="card-grid" style="margin-bottom:16px;">
                         <div style="text-align:center;padding:16px;background:#f7fafc;border-radius:8px;">
-                            <div style="font-size:24px;font-weight:bold;color:#1a365d;">${stats.sent_count}</div>
+                            <div style="font-size:24px;font-weight:bold;color:#4a9595;">${stats.sent_count}</div>
                             <div style="font-size:12px;color:#666;">已發送</div>
                         </div>
                         <div style="text-align:center;padding:16px;background:#f7fafc;border-radius:8px;">
@@ -1462,7 +2070,7 @@
                             <div style="font-size:12px;color:#666;">點擊人數</div>
                         </div>
                         <div style="text-align:center;padding:16px;background:#f7fafc;border-radius:8px;">
-                            <div style="font-size:24px;font-weight:bold;color:#3182ce;">${stats.click_rate}%</div>
+                            <div style="font-size:24px;font-weight:bold;color:#5CADAD;">${stats.click_rate}%</div>
                             <div style="font-size:12px;color:#666;">點擊率</div>
                         </div>
                     </div>
@@ -1557,16 +2165,19 @@
         }
 
         // 初始化
-        (async function init() {
-            const isLoggedIn = await checkAuth();
-            if (isLoggedIn) {
-                // 讀取 URL hash 來決定要載入的頁面
-                const hash = window.location.hash.slice(1); // 移除 # 符號
-                const validPages = Object.keys(pages);
-                const targetPage = validPages.includes(hash) ? hash : 'dashboard';
-                await navigateToPage(targetPage);
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                const isLoggedIn = await checkAuth();
+                if (isLoggedIn) {
+                    const hash = window.location.hash.slice(1);
+                    const validPages = Object.keys(pages);
+                    const targetPage = validPages.includes(hash) ? hash : 'dashboard';
+                    await navigateToPage(targetPage);
+                }
+            } catch (error) {
+                document.getElementById('page-content').innerHTML = '<div class="card"><p>載入錯誤: ' + error.message + '</p></div>';
             }
-        })();
+        });
 
         // 處理瀏覽器的上一頁/下一頁
         window.addEventListener('hashchange', async () => {
