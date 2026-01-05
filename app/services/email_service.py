@@ -2,6 +2,7 @@ import os
 import json
 import base64
 import asyncio
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from email.mime.text import MIMEText
@@ -16,6 +17,8 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.send']
 # 執行緒池用於 OAuth 流程
 _executor = ThreadPoolExecutor(max_workers=1)
 
+logger = logging.getLogger(__name__)
+
 
 class EmailService:
     def __init__(self):
@@ -23,6 +26,29 @@ class EmailService:
         self.credentials_path = self.base_path / "credentials.json"
         self.token_path = self.base_path / "token.json"
         self._service = None
+
+    def _get_credentials_from_env(self) -> Credentials | None:
+        """從環境變數取得憑證"""
+        client_id = os.getenv("GOOGLE_CLIENT_ID")
+        client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+        refresh_token = os.getenv("GOOGLE_REFRESH_TOKEN")
+
+        if not all([client_id, client_secret, refresh_token]):
+            return None
+
+        logger.info("使用環境變數中的 Gmail 憑證")
+
+        # 建立 Credentials 物件
+        creds = Credentials(
+            token=None,
+            refresh_token=refresh_token,
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=client_id,
+            client_secret=client_secret,
+            scopes=SCOPES
+        )
+
+        return creds
 
     def _run_oauth_flow(self):
         """在背景執行緒中執行 OAuth 流程"""
@@ -85,29 +111,34 @@ class EmailService:
 
         creds = None
 
-        # 檢查是否有已存在的 token
-        if self.token_path.exists():
+        # 優先從環境變數取得憑證
+        creds = self._get_credentials_from_env()
+
+        # 如果環境變數沒有，嘗試從檔案讀取
+        if not creds and self.token_path.exists():
+            logger.info("使用 token.json 檔案中的憑證")
             creds = Credentials.from_authorized_user_file(str(self.token_path), SCOPES)
 
         # 如果沒有有效的憑證，進行授權
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
+                logger.info("Token 已過期，正在重新整理...")
                 creds.refresh(Request())
             else:
                 if not self.credentials_path.exists():
                     raise FileNotFoundError(
-                        f"請先下載 Gmail API 憑證並放置於: {self.credentials_path}\n"
-                        "1. 前往 https://console.cloud.google.com/apis/credentials\n"
-                        "2. 建立 OAuth 2.0 用戶端 ID\n"
-                        "3. 下載 JSON 檔案並命名為 credentials.json"
+                        "找不到 Gmail API 憑證。請設定環境變數或下載憑證檔案：\n"
+                        "方法 1: 設定環境變數 GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN\n"
+                        "方法 2: 下載 credentials.json 並放置於專案根目錄"
                     )
                 # 在執行緒池中執行 OAuth 流程，避免阻塞
                 loop = asyncio.get_event_loop()
                 creds = await loop.run_in_executor(_executor, self._run_oauth_flow)
 
-            # 儲存 token
-            with open(self.token_path, 'w') as token:
-                token.write(creds.to_json())
+            # 只有使用檔案模式時才儲存 token
+            if not os.getenv("GOOGLE_CLIENT_ID"):
+                with open(self.token_path, 'w') as token:
+                    token.write(creds.to_json())
 
         self._service = build('gmail', 'v1', credentials=creds)
         return self._service
