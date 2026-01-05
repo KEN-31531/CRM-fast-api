@@ -83,8 +83,8 @@ async def get_current_admin(
     }
 
 
-@router.post("/init")
+@router.api_route("/init", methods=["GET", "POST"])
 async def init_admin(db: AsyncSession = Depends(get_db)):
-    """初始化預設管理員帳號"""
+    """初始化預設管理員帳號（支援 GET 和 POST）"""
     result = await auth_service.init_default_admin(db)
     return result
