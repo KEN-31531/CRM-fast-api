@@ -114,31 +114,41 @@ class EmailService:
         # 優先從環境變數取得憑證
         creds = self._get_credentials_from_env()
 
+        # 如果環境變數有憑證，需要先 refresh 取得 access token
+        if creds and creds.refresh_token:
+            try:
+                logger.info("正在使用 refresh token 取得 access token...")
+                creds.refresh(Request())
+                logger.info("成功取得 access token")
+            except Exception as e:
+                logger.error(f"Refresh token 失敗: {e}")
+                creds = None
+
         # 如果環境變數沒有，嘗試從檔案讀取
         if not creds and self.token_path.exists():
             logger.info("使用 token.json 檔案中的憑證")
             creds = Credentials.from_authorized_user_file(str(self.token_path), SCOPES)
 
-        # 如果沒有有效的憑證，進行授權
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
+            # 如果檔案中的 token 過期，嘗試 refresh
+            if creds and not creds.valid and creds.expired and creds.refresh_token:
                 logger.info("Token 已過期，正在重新整理...")
                 creds.refresh(Request())
-            else:
-                if not self.credentials_path.exists():
-                    raise FileNotFoundError(
-                        "找不到 Gmail API 憑證。請設定環境變數或下載憑證檔案：\n"
-                        "方法 1: 設定環境變數 GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN\n"
-                        "方法 2: 下載 credentials.json 並放置於專案根目錄"
-                    )
-                # 在執行緒池中執行 OAuth 流程，避免阻塞
-                loop = asyncio.get_event_loop()
-                creds = await loop.run_in_executor(_executor, self._run_oauth_flow)
+
+        # 如果還是沒有有效的憑證，進行 OAuth 授權流程
+        if not creds or not creds.valid:
+            if not self.credentials_path.exists():
+                raise FileNotFoundError(
+                    "找不到 Gmail API 憑證。請設定環境變數或下載憑證檔案：\n"
+                    "方法 1: 設定環境變數 GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN\n"
+                    "方法 2: 下載 credentials.json 並放置於專案根目錄"
+                )
+            # 在執行緒池中執行 OAuth 流程，避免阻塞
+            loop = asyncio.get_event_loop()
+            creds = await loop.run_in_executor(_executor, self._run_oauth_flow)
 
             # 只有使用檔案模式時才儲存 token
-            if not os.getenv("GOOGLE_CLIENT_ID"):
-                with open(self.token_path, 'w') as token:
-                    token.write(creds.to_json())
+            with open(self.token_path, 'w') as token:
+                token.write(creds.to_json())
 
         self._service = build('gmail', 'v1', credentials=creds)
         return self._service
