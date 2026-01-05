@@ -8,13 +8,26 @@ from app.models.db_models import Customer, Course, ActivityParticipation
 
 class DatabaseService:
     def __init__(self):
-        self.base_path = Path(__file__).parent.parent.parent
+        self.base_path = Path(__file__).parent.parent.parent / "my_data"
+        self.complete_course_path = self.base_path / "完整課程" / "聖誕節蛋糕製作完整課程名單.csv"
+        self.experience_course_path = self.base_path / "體驗課程" / "聖誕節蛋糕製作體驗課程名單.csv"
 
     def _parse_date(self, date_str: str):
         return datetime.strptime(date_str, "%Y/%m/%d").date()
 
     def _parse_datetime(self, datetime_str: str):
         return datetime.strptime(datetime_str, "%Y/%m/%d %H:%M")
+
+    def _mask_email(self, email: str) -> str:
+        """遮蔽 Email，只顯示首字母和域名"""
+        if not email or "@" not in email:
+            return email
+        local, domain = email.split("@", 1)
+        if len(local) <= 1:
+            masked_local = local
+        else:
+            masked_local = local[0] + "***"
+        return f"{masked_local}@{domain}"
 
     async def import_csv_data(self, db: AsyncSession):
         """從 CSV 匯入資料到資料庫"""
@@ -25,21 +38,19 @@ class DatabaseService:
         await db.flush()
 
         # 匯入完整課程資料
-        complete_path = self.base_path / "完整課程" / "聖誕節蛋糕製作完整課程名單.csv"
-        await self._import_course_csv(db, complete_path, complete_course.id)
+        await self._import_course_csv(db, self.complete_course_path, complete_course.id)
 
         # 匯入體驗課程資料
-        experience_path = self.base_path / "體驗課程" / "聖誕節蛋糕製作體驗課程名單.csv"
-        await self._import_course_csv(db, experience_path, experience_course.id)
+        await self._import_course_csv(db, self.experience_course_path, experience_course.id)
 
         await db.commit()
         return {"message": "資料匯入成功"}
 
     async def _import_course_csv(self, db: AsyncSession, csv_path: Path, course_id: int):
-        df = pd.read_csv(csv_path, encoding="utf-8")
+        df = pd.read_csv(csv_path, encoding="utf-8", dtype={"電話": str})
 
         for _, row in df.iterrows():
-            phone = row["電話"]
+            phone = str(row["電話"]).zfill(10)  # 確保電話號碼為字串且補足前導零
 
             # 檢查顧客是否已存在
             result = await db.execute(
@@ -51,6 +62,7 @@ class DatabaseService:
                 customer = Customer(
                     name=row["姓名"],
                     phone=phone,
+                    email=row.get("Email", ""),
                     birthday=self._parse_date(row["生日"]),
                 )
                 db.add(customer)
@@ -121,6 +133,7 @@ class DatabaseService:
                 "id": customer.id,
                 "name": customer.name,
                 "phone": customer.phone,
+                "email": self._mask_email(customer.email) if customer.email else "",
                 "birthday": customer.birthday,
                 "complete_course_participations": complete_times,
                 "experience_course_participations": experience_times,

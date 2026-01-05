@@ -51,6 +51,27 @@
                         轉換率分析
                     </a>
                 </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">行銷工具</div>
+                    <a class="nav-item" data-page="greeting">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        節慶祝賀
+                    </a>
+                    <a class="nav-item" data-page="campaigns">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+                        </svg>
+                        廣告活動
+                    </a>
+                    <a class="nav-item" data-page="schedules">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        排程管理
+                    </a>
+                </div>
             </nav>
         </aside>
 
@@ -176,6 +197,7 @@
                                 <tr>
                                     <th>姓名</th>
                                     <th>電話</th>
+                                    <th>Email</th>
                                     <th>生日</th>
                                     <th>完整課程</th>
                                     <th>體驗課程</th>
@@ -186,6 +208,7 @@
                                     <tr>
                                         <td>${c.name}</td>
                                         <td>${c.phone}</td>
+                                        <td>${c.email || '-'}</td>
                                         <td>${c.birthday}</td>
                                         <td>
                                             ${c.complete_course_participations.length > 0
@@ -307,6 +330,291 @@
                         </div>
                     </div>
                 `;
+            },
+
+            greeting: async () => {
+                const [festivals, customers] = await Promise.all([
+                    fetchAPI('/email/festivals'),
+                    fetchAPI('/customers/')
+                ]);
+
+                return `
+                    <div class="page-header">
+                        <h2>節慶祝賀</h2>
+                        <p>發送節慶祝賀信給顧客</p>
+                    </div>
+
+                    <div class="card" style="margin-bottom: 24px;">
+                        <div class="card-title" style="margin-bottom: 16px;">選擇節慶</div>
+                        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                            ${festivals.map(f => `
+                                <button class="festival-btn" data-festival="${f.id}" style="
+                                    padding: 12px 24px;
+                                    border: 2px solid #e2e8f0;
+                                    border-radius: 8px;
+                                    background: white;
+                                    cursor: pointer;
+                                    font-size: 16px;
+                                    transition: all 0.2s;
+                                " onmouseover="this.style.borderColor='#3182ce'" onmouseout="this.style.borderColor=this.classList.contains('selected')?'#3182ce':'#e2e8f0'">
+                                    ${f.emoji} ${f.name}
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-bottom: 24px;">
+                        <div class="card-title" style="margin-bottom: 16px;">自訂訊息（選填）</div>
+                        <textarea id="custom-message" placeholder="輸入額外的祝福訊息..." style="
+                            width: 100%;
+                            min-height: 100px;
+                            padding: 12px;
+                            border: 1px solid #e2e8f0;
+                            border-radius: 8px;
+                            font-size: 14px;
+                            resize: vertical;
+                        "></textarea>
+                    </div>
+
+                    <div class="card" style="margin-bottom: 24px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <div class="card-title">選擇顧客</div>
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="select-all" style="width: 18px; height: 18px;">
+                                全選
+                            </label>
+                        </div>
+                        <div style="max-height: 300px; overflow-y: auto;">
+                            ${customers.filter(c => c.email).map(c => `
+                                <label style="display: flex; align-items: center; gap: 12px; padding: 10px; border-bottom: 1px solid #eee; cursor: pointer;">
+                                    <input type="checkbox" class="customer-checkbox" value="${c.id}" style="width: 18px; height: 18px;">
+                                    <span style="flex: 1;">${c.name}</span>
+                                    <span style="color: #666; font-size: 14px;">${c.email}</span>
+                                </label>
+                            `).join('')}
+                        </div>
+                        <p style="color: #666; font-size: 14px; margin-top: 12px;">
+                            共 ${customers.filter(c => c.email).length} 位顧客有 Email
+                        </p>
+                    </div>
+
+                    <button id="send-greeting-btn" style="
+                        background: linear-gradient(135deg, #1a365d 0%, #2d4a6f 100%);
+                        color: white;
+                        border: none;
+                        padding: 14px 32px;
+                        border-radius: 8px;
+                        font-size: 16px;
+                        cursor: pointer;
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                    ">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        發送祝賀信
+                    </button>
+
+                    <div id="send-result" style="margin-top: 24px;"></div>
+                `;
+            },
+
+            campaigns: async () => {
+                const campaigns = await fetchAPI('/campaigns/');
+                const statusMap = {
+                    'draft': { text: '草稿', class: 'badge-warning' },
+                    'scheduled': { text: '已排程', class: 'badge-info' },
+                    'sending': { text: '發送中', class: 'badge-info' },
+                    'completed': { text: '已完成', class: 'badge-success' },
+                    'cancelled': { text: '已取消', class: 'badge-error' }
+                };
+
+                return `
+                    <div class="page-header">
+                        <h2>廣告活動</h2>
+                        <p>建立和管理行銷廣告活動</p>
+                    </div>
+
+                    <button id="create-campaign-btn" style="
+                        background: linear-gradient(135deg, #1a365d 0%, #2d4a6f 100%);
+                        color: white;
+                        border: none;
+                        padding: 12px 24px;
+                        border-radius: 8px;
+                        font-size: 14px;
+                        cursor: pointer;
+                        margin-bottom: 24px;
+                    ">+ 建立新活動</button>
+
+                    <div class="table-container">
+                        <div class="table-header">
+                            <div class="table-title">活動列表 (${campaigns.length} 筆)</div>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>活動名稱</th>
+                                    <th>狀態</th>
+                                    <th>篩選條件</th>
+                                    <th>收件人數</th>
+                                    <th>已發送</th>
+                                    <th>點擊率</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${campaigns.length === 0 ? `
+                                    <tr><td colspan="7" style="text-align:center;color:#666;">尚無活動</td></tr>
+                                ` : campaigns.map(c => `
+                                    <tr>
+                                        <td>${c.name}</td>
+                                        <td><span class="badge ${statusMap[c.status]?.class || ''}">${statusMap[c.status]?.text || c.status}</span></td>
+                                        <td style="font-size:12px;color:#666;">
+                                            ${c.course_type_filter === 'all' ? '全部課程' : c.course_type_filter === 'complete' ? '完整課程' : '體驗課程'}
+                                            /
+                                            ${c.purchase_status_filter === 'all' ? '全部' : c.purchase_status_filter === 'purchased' ? '已購買' : '未購買'}
+                                        </td>
+                                        <td>${c.total_recipients}</td>
+                                        <td>${c.sent_count}</td>
+                                        <td>${c.sent_count > 0 ? Math.round((c.sent_count - c.failed_count) / c.sent_count * 100) : 0}%</td>
+                                        <td>
+                                            <button onclick="viewCampaignStats(${c.id})" style="padding:4px 8px;font-size:12px;cursor:pointer;">統計</button>
+                                            ${c.status === 'draft' ? `
+                                                <button onclick="sendCampaignNow(${c.id})" style="padding:4px 8px;font-size:12px;cursor:pointer;background:#3182ce;color:white;border:none;border-radius:4px;">發送</button>
+                                            ` : ''}
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div id="campaign-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;justify-content:center;align-items:center;">
+                        <div style="background:white;border-radius:12px;max-width:600px;width:90%;max-height:90vh;overflow-y:auto;padding:24px;">
+                            <h3 style="margin:0 0 20px;">建立廣告活動</h3>
+                            <form id="campaign-form">
+                                <div style="margin-bottom:16px;">
+                                    <label style="display:block;margin-bottom:4px;font-weight:500;">活動名稱</label>
+                                    <input type="text" name="name" required style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;">
+                                </div>
+                                <div style="margin-bottom:16px;">
+                                    <label style="display:block;margin-bottom:4px;font-weight:500;">郵件主旨</label>
+                                    <input type="text" name="subject" required style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;">
+                                </div>
+                                <div style="display:flex;gap:16px;margin-bottom:16px;">
+                                    <div style="flex:1;">
+                                        <label style="display:block;margin-bottom:4px;font-weight:500;">課程類型</label>
+                                        <select name="course_type_filter" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;">
+                                            <option value="all">全部</option>
+                                            <option value="complete">完整課程</option>
+                                            <option value="experience">體驗課程</option>
+                                        </select>
+                                    </div>
+                                    <div style="flex:1;">
+                                        <label style="display:block;margin-bottom:4px;font-weight:500;">購買狀態</label>
+                                        <select name="purchase_status_filter" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;">
+                                            <option value="all">全部</option>
+                                            <option value="purchased">已購買</option>
+                                            <option value="not_purchased">未購買</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div style="margin-bottom:16px;">
+                                    <label style="display:block;margin-bottom:4px;font-weight:500;">郵件內容 (HTML)</label>
+                                    <textarea name="content" rows="8" required style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;font-family:monospace;" placeholder="<h1>標題</h1>
+<p>親愛的 {{name}} 您好，</p>
+<p>內容...</p>
+<a href='https://example.com'>點此了解更多</a>"></textarea>
+                                    <p style="font-size:12px;color:#666;margin-top:4px;">使用 {{name}} 插入收件人姓名</p>
+                                </div>
+                                <div style="display:flex;gap:12px;justify-content:flex-end;">
+                                    <button type="button" onclick="closeCampaignModal()" style="padding:10px 20px;border:1px solid #e2e8f0;border-radius:6px;background:white;cursor:pointer;">取消</button>
+                                    <button type="submit" style="padding:10px 20px;border:none;border-radius:6px;background:#1a365d;color:white;cursor:pointer;">建立活動</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div id="stats-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;justify-content:center;align-items:center;">
+                        <div style="background:white;border-radius:12px;max-width:500px;width:90%;padding:24px;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                                <h3 style="margin:0;">活動統計</h3>
+                                <button onclick="closeStatsModal()" style="background:none;border:none;font-size:24px;cursor:pointer;">&times;</button>
+                            </div>
+                            <div id="stats-content"></div>
+                        </div>
+                    </div>
+                `;
+            },
+
+            schedules: async () => {
+                const schedules = await fetchAPI('/schedules/');
+                const statusMap = {
+                    'pending': { text: '待執行', class: 'badge-warning' },
+                    'running': { text: '執行中', class: 'badge-info' },
+                    'completed': { text: '已完成', class: 'badge-success' },
+                    'failed': { text: '失敗', class: 'badge-error' },
+                    'cancelled': { text: '已取消', class: 'badge-error' }
+                };
+
+                return `
+                    <div class="page-header">
+                        <h2>排程管理</h2>
+                        <p>管理自動化任務和排程</p>
+                    </div>
+
+                    <div class="card-grid">
+                        <div class="card">
+                            <div class="card-title">待執行任務</div>
+                            <div class="card-value">${schedules.filter(s => s.status === 'pending').length}</div>
+                        </div>
+                        <div class="card">
+                            <div class="card-title">重複任務</div>
+                            <div class="card-value">${schedules.filter(s => s.is_recurring).length}</div>
+                        </div>
+                        <div class="card">
+                            <div class="card-title">已完成</div>
+                            <div class="card-value">${schedules.filter(s => s.status === 'completed').length}</div>
+                        </div>
+                    </div>
+
+                    <div class="table-container" style="margin-top:24px;">
+                        <div class="table-header">
+                            <div class="table-title">排程任務列表</div>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>任務類型</th>
+                                    <th>說明</th>
+                                    <th>排程時間</th>
+                                    <th>下次執行</th>
+                                    <th>狀態</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${schedules.length === 0 ? `
+                                    <tr><td colspan="6" style="text-align:center;color:#666;">尚無排程任務</td></tr>
+                                ` : schedules.map(s => `
+                                    <tr>
+                                        <td>${s.task_type === 'campaign' ? '廣告活動' : s.task_type}</td>
+                                        <td>${s.description || '-'}</td>
+                                        <td>${s.scheduled_at ? new Date(s.scheduled_at).toLocaleString('zh-TW') : (s.cron_expression || '-')}</td>
+                                        <td>${s.next_run_at ? new Date(s.next_run_at).toLocaleString('zh-TW') : '-'}</td>
+                                        <td><span class="badge ${statusMap[s.status]?.class || ''}">${statusMap[s.status]?.text || s.status}</span></td>
+                                        <td>
+                                            ${s.status === 'pending' ? `
+                                                <button onclick="cancelSchedule('${s.job_id}')" style="padding:4px 8px;font-size:12px;cursor:pointer;background:#e53e3e;color:white;border:none;border-radius:4px;">取消</button>
+                                            ` : '-'}
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
             }
         };
 
@@ -338,6 +646,13 @@
                 try {
                     const content = await pages[page]();
                     document.getElementById('page-content').innerHTML = content;
+
+                    // Page-specific initialization
+                    if (page === 'greeting') {
+                        initGreetingPage();
+                    } else if (page === 'campaigns') {
+                        initCampaignsPage();
+                    }
                 } catch (error) {
                     document.getElementById('page-content').innerHTML = `
                         <div class="card">
@@ -348,6 +663,229 @@
                 }
             });
         });
+
+        // Greeting page initialization
+        let selectedFestival = null;
+
+        function initGreetingPage() {
+            // Festival selection
+            document.querySelectorAll('.festival-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.festival-btn').forEach(b => {
+                        b.classList.remove('selected');
+                        b.style.borderColor = '#e2e8f0';
+                        b.style.background = 'white';
+                    });
+                    btn.classList.add('selected');
+                    btn.style.borderColor = '#3182ce';
+                    btn.style.background = '#ebf8ff';
+                    selectedFestival = btn.dataset.festival;
+                });
+            });
+
+            // Select all checkbox
+            document.getElementById('select-all').addEventListener('change', (e) => {
+                document.querySelectorAll('.customer-checkbox').forEach(cb => {
+                    cb.checked = e.target.checked;
+                });
+            });
+
+            // Send greeting button
+            document.getElementById('send-greeting-btn').addEventListener('click', async () => {
+                if (!selectedFestival) {
+                    alert('請先選擇節慶');
+                    return;
+                }
+
+                const selectedCustomers = Array.from(document.querySelectorAll('.customer-checkbox:checked'))
+                    .map(cb => parseInt(cb.value));
+
+                if (selectedCustomers.length === 0) {
+                    alert('請選擇至少一位顧客');
+                    return;
+                }
+
+                const customMessage = document.getElementById('custom-message').value;
+                const btn = document.getElementById('send-greeting-btn');
+                const resultDiv = document.getElementById('send-result');
+
+                btn.disabled = true;
+                btn.innerHTML = '<div class="spinner" style="width:20px;height:20px;border-width:2px;margin-right:8px;"></div> 發送中...';
+
+                try {
+                    const response = await fetch('/email/send-greeting', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            customer_ids: selectedCustomers,
+                            festival: selectedFestival,
+                            custom_message: customMessage
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    resultDiv.innerHTML = `
+                        <div class="card" style="background: ${result.success_count > 0 ? '#f0fff4' : '#fff5f5'};">
+                            <div class="card-title">發送結果</div>
+                            <p>成功：${result.success_count} 封</p>
+                            <p>失敗：${result.failed_count} 封</p>
+                            ${result.failed_count > 0 ? `
+                                <details style="margin-top: 12px;">
+                                    <summary style="cursor: pointer; color: #666;">查看詳情</summary>
+                                    <ul style="margin-top: 8px; padding-left: 20px;">
+                                        ${result.results.filter(r => !r.success).map(r => `
+                                            <li>${r.name}: ${r.error}</li>
+                                        `).join('')}
+                                    </ul>
+                                </details>
+                            ` : ''}
+                        </div>
+                    `;
+                } catch (error) {
+                    resultDiv.innerHTML = `
+                        <div class="card" style="background: #fff5f5;">
+                            <div class="card-title">發送失敗</div>
+                            <p>${error.message}</p>
+                        </div>
+                    `;
+                }
+
+                btn.disabled = false;
+                btn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    發送祝賀信
+                `;
+            });
+        }
+
+        // Campaigns page initialization
+        function initCampaignsPage() {
+            // Create campaign button
+            document.getElementById('create-campaign-btn').addEventListener('click', () => {
+                document.getElementById('campaign-modal').style.display = 'flex';
+            });
+
+            // Campaign form submission
+            document.getElementById('campaign-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const data = {
+                    name: formData.get('name'),
+                    subject: formData.get('subject'),
+                    content: formData.get('content'),
+                    course_type_filter: formData.get('course_type_filter'),
+                    purchase_status_filter: formData.get('purchase_status_filter')
+                };
+
+                try {
+                    const response = await fetch('/campaigns/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    const result = await response.json();
+
+                    if (result.success) {
+                        alert(result.message);
+                        closeCampaignModal();
+                        document.querySelector('[data-page="campaigns"]').click();
+                    } else {
+                        alert('建立失敗：' + (result.detail || '未知錯誤'));
+                    }
+                } catch (error) {
+                    alert('建立失敗：' + error.message);
+                }
+            });
+        }
+
+        function closeCampaignModal() {
+            document.getElementById('campaign-modal').style.display = 'none';
+            document.getElementById('campaign-form').reset();
+        }
+
+        function closeStatsModal() {
+            document.getElementById('stats-modal').style.display = 'none';
+        }
+
+        async function viewCampaignStats(campaignId) {
+            try {
+                const stats = await fetchAPI(`/campaigns/${campaignId}/stats`);
+                const content = `
+                    <div class="card-grid" style="margin-bottom:16px;">
+                        <div style="text-align:center;padding:16px;background:#f7fafc;border-radius:8px;">
+                            <div style="font-size:24px;font-weight:bold;color:#1a365d;">${stats.sent_count}</div>
+                            <div style="font-size:12px;color:#666;">已發送</div>
+                        </div>
+                        <div style="text-align:center;padding:16px;background:#f7fafc;border-radius:8px;">
+                            <div style="font-size:24px;font-weight:bold;color:#38a169;">${stats.unique_clickers}</div>
+                            <div style="font-size:12px;color:#666;">點擊人數</div>
+                        </div>
+                        <div style="text-align:center;padding:16px;background:#f7fafc;border-radius:8px;">
+                            <div style="font-size:24px;font-weight:bold;color:#3182ce;">${stats.click_rate}%</div>
+                            <div style="font-size:12px;color:#666;">點擊率</div>
+                        </div>
+                    </div>
+                    ${stats.links && stats.links.length > 0 ? `
+                        <div style="margin-top:16px;">
+                            <div style="font-weight:500;margin-bottom:8px;">連結點擊統計</div>
+                            ${stats.links.map(link => `
+                                <div style="display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid #eee;">
+                                    <span style="font-size:12px;color:#666;overflow:hidden;text-overflow:ellipsis;max-width:300px;">${link.original_url}</span>
+                                    <span style="font-weight:500;">${link.click_count} 次</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                `;
+                document.getElementById('stats-content').innerHTML = content;
+                document.getElementById('stats-modal').style.display = 'flex';
+            } catch (error) {
+                alert('載入統計失敗：' + error.message);
+            }
+        }
+
+        async function sendCampaignNow(campaignId) {
+            if (!confirm('確定要立即發送此活動嗎？')) return;
+
+            try {
+                const response = await fetch(`/campaigns/${campaignId}/send-now`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    alert(result.message);
+                    document.querySelector('[data-page="campaigns"]').click();
+                } else {
+                    alert('發送失敗：' + (result.error || result.detail || '未知錯誤'));
+                }
+            } catch (error) {
+                alert('發送失敗：' + error.message);
+            }
+        }
+
+        async function cancelSchedule(jobId) {
+            if (!confirm('確定要取消此排程嗎？')) return;
+
+            try {
+                const response = await fetch(`/schedules/${jobId}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    alert(result.message);
+                    document.querySelector('[data-page="schedules"]').click();
+                } else {
+                    alert('取消失敗：' + (result.detail || '未知錯誤'));
+                }
+            } catch (error) {
+                alert('取消失敗：' + error.message);
+            }
+        }
 
         // Load dashboard on start
         document.querySelector('[data-page="dashboard"]').click();

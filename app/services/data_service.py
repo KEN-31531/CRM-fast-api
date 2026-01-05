@@ -5,7 +5,7 @@ from datetime import datetime
 
 class DataService:
     def __init__(self):
-        self.base_path = Path(__file__).parent.parent.parent
+        self.base_path = Path(__file__).parent.parent.parent / "my_data"
         self.complete_course_path = self.base_path / "完整課程" / "聖誕節蛋糕製作完整課程名單.csv"
         self.experience_course_path = self.base_path / "體驗課程" / "聖誕節蛋糕製作體驗課程名單.csv"
         self._complete_df = None

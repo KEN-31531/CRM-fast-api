@@ -221,6 +221,8 @@ tr:hover td {
 
 .badge-success { background: #c6f6d5; color: #276749; }
 .badge-warning { background: #feebc8; color: #c05621; }
+.badge-info { background: #bee3f8; color: #2b6cb0; }
+.badge-error { background: #fed7d7; color: #c53030; }
 
 /* Insights */
 .insights-container {

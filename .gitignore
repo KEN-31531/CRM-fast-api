@@ -18,3 +18,7 @@ crm.db
 
 # Environment
 .env
+
+# Google API credentials
+credentials.json
+token.json
