@@ -1,10 +1,12 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 import logging
+import os
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
-from app.routers import customers_router, analysis_router, admin_router, email_router
+from starlette.middleware.sessions import SessionMiddleware
+from app.routers import customers_router, analysis_router, admin_router, email_router, auth_router
 from app.routers.campaigns import router as campaigns_router
 from app.routers.tracking import router as tracking_router
 from app.routers.schedules import router as schedules_router, reload_scheduled_tasks
@@ -46,6 +48,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# 加入 Session 中間件
+SESSION_SECRET_KEY = os.getenv("SESSION_SECRET_KEY", "crm-secret-key-change-in-production")
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET_KEY)
+
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 app.include_router(customers_router)
@@ -55,9 +61,18 @@ app.include_router(email_router)
 app.include_router(campaigns_router)
 app.include_router(tracking_router)
 app.include_router(schedules_router)
+app.include_router(auth_router)
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page():
+    """登入頁面"""
+    html_file = BASE_DIR / "templates" / "login.html"
+    return html_file.read_text(encoding="utf-8")
 
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
+    """後台主頁（前端會檢查登入狀態）"""
     html_file = BASE_DIR / "templates" / "index.html"
     return html_file.read_text(encoding="utf-8")

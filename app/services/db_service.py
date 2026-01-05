@@ -46,6 +46,92 @@ class DatabaseService:
         await db.commit()
         return {"message": "資料匯入成功"}
 
+    async def import_customers_from_csv(
+        self,
+        db: AsyncSession,
+        csv_content: str,
+        course_name: str,
+        course_type: str
+    ) -> dict:
+        """從上傳的 CSV 內容匯入顧客資料"""
+        import io
+
+        # 檢查或建立課程
+        result = await db.execute(
+            select(Course).where(
+                Course.name == course_name,
+                Course.course_type == course_type
+            )
+        )
+        course = result.scalar_one_or_none()
+
+        if not course:
+            course = Course(name=course_name, course_type=course_type)
+            db.add(course)
+            await db.flush()
+
+        # 解析 CSV
+        df = pd.read_csv(io.StringIO(csv_content), encoding="utf-8", dtype={"電話": str})
+
+        imported_count = 0
+        updated_count = 0
+        errors = []
+
+        for idx, row in df.iterrows():
+            try:
+                phone = str(row["電話"]).zfill(10)
+
+                # 檢查顧客是否已存在
+                result = await db.execute(
+                    select(Customer).where(Customer.phone == phone)
+                )
+                customer = result.scalar_one_or_none()
+
+                if not customer:
+                    customer = Customer(
+                        name=row["姓名"],
+                        phone=phone,
+                        email=row.get("Email", ""),
+                        birthday=self._parse_date(row["生日"]),
+                    )
+                    db.add(customer)
+                    await db.flush()
+                    imported_count += 1
+                else:
+                    updated_count += 1
+
+                # 檢查是否已有該課程的參與記錄
+                result = await db.execute(
+                    select(ActivityParticipation).where(
+                        ActivityParticipation.customer_id == customer.id,
+                        ActivityParticipation.course_id == course.id,
+                        ActivityParticipation.activity_time == self._parse_datetime(row["參加活動時間"])
+                    )
+                )
+                existing = result.scalar_one_or_none()
+
+                if not existing:
+                    participation = ActivityParticipation(
+                        customer_id=customer.id,
+                        course_id=course.id,
+                        activity_time=self._parse_datetime(row["參加活動時間"]),
+                        purchased=row["是否購買課程"] == "是",
+                    )
+                    db.add(participation)
+
+            except Exception as e:
+                errors.append(f"第 {idx + 2} 行錯誤: {str(e)}")
+
+        await db.commit()
+
+        return {
+            "success": True,
+            "message": f"匯入完成：新增 {imported_count} 位顧客，更新 {updated_count} 位顧客",
+            "imported": imported_count,
+            "updated": updated_count,
+            "errors": errors if errors else None
+        }
+
     async def _import_course_csv(self, db: AsyncSession, csv_path: Path, course_id: int):
         df = pd.read_csv(csv_path, encoding="utf-8", dtype={"電話": str})
 

@@ -13,6 +13,10 @@
             <div class="sidebar-header">
                 <h1>CRM 系統</h1>
                 <p>顧客關係管理</p>
+                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 12px;">
+                    <span id="user-info" style="opacity: 0.8;"></span>
+                    <button onclick="logout()" style="margin-left: 10px; padding: 4px 8px; background: rgba(255,255,255,0.2); border: none; border-radius: 4px; color: white; cursor: pointer; font-size: 12px;">登出</button>
+                </div>
             </div>
             <nav class="sidebar-nav">
                 <div class="nav-section">
@@ -70,6 +74,15 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         排程管理
+                    </a>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">系統管理</div>
+                    <a class="nav-item" data-page="import">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                        匯入資料
                     </a>
                 </div>
             </nav>
@@ -786,6 +799,65 @@
                         </div>
                     </div>
                 `;
+            },
+
+            import: async () => {
+                return `
+                    <div class="page-header">
+                        <h2>匯入資料</h2>
+                        <p>上傳 CSV 檔案匯入顧客資料</p>
+                    </div>
+
+                    <div class="card" style="max-width: 600px;">
+                        <div class="card-title">上傳 CSV 檔案</div>
+                        <form id="import-form" style="margin-top: 16px;">
+                            <div style="margin-bottom: 16px;">
+                                <label style="display:block;margin-bottom:8px;font-weight:500;">課程名稱</label>
+                                <input type="text" name="course_name" required
+                                    placeholder="例如：聖誕節蛋糕製作完整課程"
+                                    style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;box-sizing:border-box;">
+                            </div>
+
+                            <div style="margin-bottom: 16px;">
+                                <label style="display:block;margin-bottom:8px;font-weight:500;">課程類型</label>
+                                <select name="course_type" required style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;">
+                                    <option value="">請選擇...</option>
+                                    <option value="完整課程">完整課程</option>
+                                    <option value="體驗課程">體驗課程</option>
+                                </select>
+                            </div>
+
+                            <div style="margin-bottom: 16px;">
+                                <label style="display:block;margin-bottom:8px;font-weight:500;">選擇 CSV 檔案</label>
+                                <input type="file" name="file" accept=".csv" required
+                                    style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;box-sizing:border-box;">
+                                <p style="margin-top:8px;font-size:12px;color:#666;">
+                                    CSV 格式：姓名,電話,Email,生日,參加活動時間,是否購買課程
+                                </p>
+                            </div>
+
+                            <button type="submit" style="
+                                width: 100%;
+                                padding: 12px;
+                                background: linear-gradient(135deg, #1a365d 0%, #2d4a6f 100%);
+                                color: white;
+                                border: none;
+                                border-radius: 8px;
+                                font-size: 14px;
+                                cursor: pointer;
+                            ">匯入資料</button>
+                        </form>
+
+                        <div id="import-result" style="margin-top: 16px; display: none;"></div>
+                    </div>
+
+                    <div class="card" style="max-width: 600px; margin-top: 24px;">
+                        <div class="card-title">CSV 格式範例</div>
+                        <pre style="background:#f7fafc;padding:12px;border-radius:6px;font-size:12px;overflow-x:auto;margin-top:12px;">姓名,電話,Email,生日,參加活動時間,是否購買課程
+王小明,0912345678,wang@example.com,1990/01/15,2024/12/25 14:00,是
+李小華,0923456789,li@example.com,1985/05/20,2024/12/25 14:00,否</pre>
+                    </div>
+                `;
             }
         };
 
@@ -796,44 +868,53 @@
         }
 
         // Navigation
+        async function navigateToPage(page) {
+            // Update URL hash
+            window.location.hash = page;
+
+            // Update active state
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+            const activeItem = document.querySelector(`[data-page="${page}"]`);
+            if (activeItem) activeItem.classList.add('active');
+
+            // Show loading
+            document.getElementById('page-content').innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    載入中...
+                </div>
+            `;
+
+            // Load page
+            try {
+                const content = await pages[page]();
+                document.getElementById('page-content').innerHTML = content;
+
+                // Page-specific initialization
+                if (page === 'greeting') {
+                    initGreetingPage();
+                } else if (page === 'campaigns') {
+                    initCampaignsPage();
+                } else if (page === 'schedules') {
+                    initSchedulesPage();
+                } else if (page === 'import') {
+                    initImportPage();
+                }
+            } catch (error) {
+                document.getElementById('page-content').innerHTML = `
+                    <div class="card">
+                        <div class="card-title">錯誤</div>
+                        <p>載入資料時發生錯誤：${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
         document.querySelectorAll('.nav-item').forEach(item => {
             item.addEventListener('click', async (e) => {
                 e.preventDefault();
                 const page = item.dataset.page;
-
-                // Update active state
-                document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-                item.classList.add('active');
-
-                // Show loading
-                document.getElementById('page-content').innerHTML = `
-                    <div class="loading">
-                        <div class="spinner"></div>
-                        載入中...
-                    </div>
-                `;
-
-                // Load page
-                try {
-                    const content = await pages[page]();
-                    document.getElementById('page-content').innerHTML = content;
-
-                    // Page-specific initialization
-                    if (page === 'greeting') {
-                        initGreetingPage();
-                    } else if (page === 'campaigns') {
-                        initCampaignsPage();
-                    } else if (page === 'schedules') {
-                        initSchedulesPage();
-                    }
-                } catch (error) {
-                    document.getElementById('page-content').innerHTML = `
-                        <div class="card">
-                            <div class="card-title">錯誤</div>
-                            <p>載入資料時發生錯誤：${error.message}</p>
-                        </div>
-                    `;
-                }
+                await navigateToPage(page);
             });
         });
 
@@ -1288,6 +1369,85 @@
             toggleScheduleType('once');
         }
 
+        // Import page initialization
+        function initImportPage() {
+            document.getElementById('import-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+
+                const form = e.target;
+                const submitBtn = form.querySelector('button[type="submit"]');
+                const resultDiv = document.getElementById('import-result');
+
+                // 取得表單資料
+                const formData = new FormData(form);
+
+                // 驗證
+                if (!formData.get('course_name')) {
+                    alert('請輸入課程名稱');
+                    return;
+                }
+                if (!formData.get('course_type')) {
+                    alert('請選擇課程類型');
+                    return;
+                }
+                if (!formData.get('file')) {
+                    alert('請選擇 CSV 檔案');
+                    return;
+                }
+
+                // 顯示載入狀態
+                submitBtn.disabled = true;
+                submitBtn.textContent = '匯入中...';
+                resultDiv.style.display = 'none';
+
+                try {
+                    const response = await fetch('/admin/upload-csv', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok && result.success) {
+                        resultDiv.innerHTML = `
+                            <div style="background:#f0fff4;border:1px solid #9ae6b4;border-radius:8px;padding:16px;">
+                                <div style="font-weight:500;color:#276749;margin-bottom:8px;">匯入成功</div>
+                                <p style="margin:0;color:#2f855a;">${result.message}</p>
+                                ${result.errors && result.errors.length > 0 ? `
+                                    <details style="margin-top:12px;">
+                                        <summary style="cursor:pointer;color:#666;">警告訊息 (${result.errors.length})</summary>
+                                        <ul style="margin-top:8px;padding-left:20px;color:#c53030;">
+                                            ${result.errors.map(err => `<li>${err}</li>`).join('')}
+                                        </ul>
+                                    </details>
+                                ` : ''}
+                            </div>
+                        `;
+                        form.reset();
+                    } else {
+                        resultDiv.innerHTML = `
+                            <div style="background:#fff5f5;border:1px solid #feb2b2;border-radius:8px;padding:16px;">
+                                <div style="font-weight:500;color:#c53030;margin-bottom:8px;">匯入失敗</div>
+                                <p style="margin:0;color:#9b2c2c;">${result.detail || result.message || '未知錯誤'}</p>
+                            </div>
+                        `;
+                    }
+                    resultDiv.style.display = 'block';
+                } catch (error) {
+                    resultDiv.innerHTML = `
+                        <div style="background:#fff5f5;border:1px solid #feb2b2;border-radius:8px;padding:16px;">
+                            <div style="font-weight:500;color:#c53030;margin-bottom:8px;">連線錯誤</div>
+                            <p style="margin:0;color:#9b2c2c;">${error.message}</p>
+                        </div>
+                    `;
+                    resultDiv.style.display = 'block';
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = '匯入資料';
+                }
+            });
+        }
+
         async function viewCampaignStats(campaignId) {
             try {
                 const stats = await fetchAPI(`/campaigns/${campaignId}/stats`);
@@ -1365,8 +1525,57 @@
             }
         }
 
-        // Load dashboard on start
-        document.querySelector('[data-page="dashboard"]').click();
+        // 登出功能
+        async function logout() {
+            try {
+                await fetch('/auth/logout', { method: 'POST' });
+            } catch (e) {
+                // 忽略錯誤
+            }
+            window.location.href = '/login';
+        }
+
+        // 檢查登入狀態
+        async function checkAuth() {
+            try {
+                const response = await fetch('/auth/me');
+                if (!response.ok) {
+                    window.location.href = '/login';
+                    return false;
+                }
+                const data = await response.json();
+                // 顯示使用者名稱
+                const userInfo = document.getElementById('user-info');
+                if (userInfo && data.admin) {
+                    userInfo.textContent = data.admin.username;
+                }
+                return true;
+            } catch (e) {
+                window.location.href = '/login';
+                return false;
+            }
+        }
+
+        // 初始化
+        (async function init() {
+            const isLoggedIn = await checkAuth();
+            if (isLoggedIn) {
+                // 讀取 URL hash 來決定要載入的頁面
+                const hash = window.location.hash.slice(1); // 移除 # 符號
+                const validPages = Object.keys(pages);
+                const targetPage = validPages.includes(hash) ? hash : 'dashboard';
+                await navigateToPage(targetPage);
+            }
+        })();
+
+        // 處理瀏覽器的上一頁/下一頁
+        window.addEventListener('hashchange', async () => {
+            const hash = window.location.hash.slice(1);
+            const validPages = Object.keys(pages);
+            if (validPages.includes(hash)) {
+                await navigateToPage(hash);
+            }
+        });
     </script>
 </body>
 </html>

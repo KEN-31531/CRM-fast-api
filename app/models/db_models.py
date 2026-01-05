@@ -173,3 +173,17 @@ class ScheduledTask(Base):
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+
+
+# ==================== 管理員模型 ====================
+
+class Admin(Base):
+    """管理員帳號"""
+    __tablename__ = "admins"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    hashed_password: Mapped[str] = mapped_column(String(500))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    last_login: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
