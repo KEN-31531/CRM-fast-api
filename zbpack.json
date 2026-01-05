@@ -1,3 +1,4 @@
 {
-  "start_command": "uvicorn app.main:app --host 0.0.0.0 --port 8080"
+  "build_command": "pip install -r requirements.txt",
+  "start_command": "python -m uvicorn app.main:app --host 0.0.0.0 --port 8080"
 }
