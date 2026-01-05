@@ -133,7 +133,7 @@ async def execute_task(
     logger.info(f"執行任務: {task_type} - {description}")
 
     from app.services.email_service import email_service
-    from app.database import AsyncSessionLocal
+    from app.database import async_session
     from sqlalchemy import select
     from app.models.db_models import Customer
     from datetime import datetime
@@ -142,7 +142,7 @@ async def execute_task(
         # 每日檢查生日並發送祝賀
         from sqlalchemy import extract
 
-        async with AsyncSessionLocal() as session:
+        async with async_session() as session:
             today = datetime.now()
             result = await session.execute(
                 select(Customer).where(
@@ -167,7 +167,7 @@ async def execute_task(
         sent_count = 0
         failed_count = 0
 
-        async with AsyncSessionLocal() as session:
+        async with async_session() as session:
             # 發送給指定的顧客
             if customer_ids:
                 result = await session.execute(
